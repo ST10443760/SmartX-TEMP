@@ -71,12 +71,18 @@ public static class TelemetryBatchProcessor
         for (var row = 0; row < perSensorHistory.Count; row++)
         {
             var history = perSensorHistory[row];
-            var skip = Math.Max(0, history.Count - windowSize);
+
+            // Right-align the window: the last column is always the most
+            // recent reading. If there isn't enough history yet, the leading
+            // columns are left as NaN rather than shifting the data around.
+            var offset = history.Count - windowSize;
 
             for (var col = 0; col < windowSize; col++)
             {
-                var sourceIndex = skip + col;
-                grid[row, col] = sourceIndex < history.Count ? history[sourceIndex].Value : double.NaN;
+                var sourceIndex = offset + col;
+                grid[row, col] = sourceIndex >= 0 && sourceIndex < history.Count
+                    ? history[sourceIndex].Value
+                    : double.NaN;
             }
         }
 
