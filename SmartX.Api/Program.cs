@@ -14,7 +14,7 @@ builder.Services.AddCors(options =>
         policy
             .WithOrigins(
                 "http://localhost:5219", "https://localhost:7036", // SmartX.Client (Kestrel dev server)
-                "http://localhost:5000", "https://localhost:5001") // fallback / docker-compose ports
+                "http://localhost:8081") // SmartX.Client (docker-compose / nginx)
             .AllowAnyHeader()
             .AllowAnyMethod();
     });

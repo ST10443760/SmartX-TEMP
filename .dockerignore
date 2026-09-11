@@ -1,0 +1,6 @@
+**/bin/
+**/obj/
+**/UploadedFiles/
+.git/
+.gitignore
+*.md
