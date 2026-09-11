@@ -23,7 +23,7 @@ public class SensorLedgerTests
 
         ledger.Register(sensor);
 
-        Assert.Equal(1, ledger.Count);
+        Assert.Single(ledger);
         Assert.Same(sensor, ledger.FindByMacAddress("aa:bb:cc:00:00:01"));
     }
 
