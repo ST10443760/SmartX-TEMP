@@ -1,0 +1,160 @@
+@* Dynamic dashboard engagement feature: a live "Mesh Pulse" grid, not a progress bar.
+   Each registered sensor renders as an animated node whose pulse speed, colour and
+   ring intensity are driven by a live poll of the API's telemetry pulse feed - so an
+   operator can spot a spiking or disconnected node at a glance without reading numbers. *@
+@implements IAsyncDisposable
+@using SmartX.Shared.Dtos
+@using SmartX.Shared.Enums
+@inject SmartX.Client.Services.SmartXApiClient Api
+
+<div class="mesh-pulse">
+    <div class="mesh-pulse-header">
+        <h3>Live Mesh Pulse</h3>
+        <span class="mesh-pulse-clock">@(_lastUpdated?.ToLocalTime().ToString("HH:mm:ss") ?? "—")</span>
+    </div>
+
+    @if (_pulses.Count == 0)
+    {
+        <p class="muted">Waiting for the first telemetry pulse...</p>
+    }
+    else
+    {
+        <div class="pulse-grid">
+            @foreach (var pulse in _pulses)
+            {
+                <div class="pulse-node quality-@pulse.Quality" title="@pulse.SensorId">
+                    <div class="pulse-ring"></div>
+                    <div class="pulse-core">
+                        <span class="pulse-value">@pulse.Value.ToString("0.#")@pulse.Unit</span>
+                    </div>
+                    <div class="pulse-label">
+                        <span class="pulse-id">@Truncate(pulse.SensorId)</span>
+                        <span class="pulse-score">score @pulse.AnomalyScore</span>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .mesh-pulse-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; }
+    .mesh-pulse-header h3 { margin: 0; font-size: 1rem; }
+    .mesh-pulse-clock { font-family: ui-monospace, monospace; font-size: 0.78rem; color: #9aa1ab; }
+    .muted { color: #9aa1ab; font-size: 0.85rem; }
+
+    .pulse-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+        gap: 0.9rem;
+    }
+
+    .pulse-node {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 0.6rem 0.3rem 0.5rem;
+    }
+
+    .pulse-ring {
+        position: absolute;
+        top: 0.1rem;
+        width: 3.2rem;
+        height: 3.2rem;
+        border-radius: 50%;
+        animation: pulse-anim 1.8s ease-out infinite;
+    }
+
+    .pulse-core {
+        z-index: 1;
+        width: 3.2rem;
+        height: 3.2rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.68rem;
+        font-weight: 700;
+        color: white;
+    }
+
+    .pulse-label {
+        margin-top: 0.35rem;
+        text-align: center;
+        line-height: 1.2;
+    }
+
+    .pulse-id { display: block; font-size: 0.66rem; color: #5a6270; font-family: ui-monospace, monospace; }
+    .pulse-score { display: block; font-size: 0.62rem; color: #9aa1ab; }
+
+    .quality-Normal .pulse-ring, .quality-Normal .pulse-core { background: #2fa84f; }
+    .quality-Warning .pulse-ring, .quality-Warning .pulse-core { background: #e0972d; }
+    .quality-Critical .pulse-ring, .quality-Critical .pulse-core { background: #d1352b; }
+    .quality-Disconnected .pulse-ring, .quality-Disconnected .pulse-core { background: #8b93a1; }
+
+    .quality-Critical .pulse-ring { animation-duration: 0.9s; }
+    .quality-Warning .pulse-ring { animation-duration: 1.4s; }
+
+    @@keyframes pulse-anim {
+        0% { transform: scale(0.85); opacity: 0.65; }
+        70% { transform: scale(1.6); opacity: 0; }
+        100% { transform: scale(1.6); opacity: 0; }
+    }
+</style>
+
+@code {
+    private List<TelemetryPulse> _pulses = [];
+    private DateTimeOffset? _lastUpdated;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshAsync();
+
+        _cts = new CancellationTokenSource();
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(2));
+
+        _ = PollLoopAsync(_cts.Token);
+    }
+
+    private async Task PollLoopAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (await _timer!.WaitForNextTickAsync(ct))
+            {
+                await RefreshAsync();
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when the component is disposed while a wait is pending.
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            _pulses = await Api.GetLivePulsesAsync();
+            _lastUpdated = DateTimeOffset.UtcNow;
+        }
+        catch
+        {
+            // API momentarily unreachable - keep the last known pulse state on screen.
+        }
+    }
+
+    private static string Truncate(string sensorId) => sensorId.Length <= 11 ? sensorId : sensorId[^11..];
+
+    public async ValueTask DisposeAsync()
+    {
+        _cts?.Cancel();
+        _timer?.Dispose();
+        _cts?.Dispose();
+        await Task.CompletedTask;
+    }
+}
