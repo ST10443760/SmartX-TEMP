@@ -52,7 +52,7 @@ public sealed class TelemetryHistoryStore
             ? list.Skip(Math.Max(0, list.Count - take)).ToList()
             : [];
 
-    public IReadOnlyCollection<List<TelemetryPacket<double>>> AllHistories() => _history.Values;
+    public IReadOnlyCollection<List<TelemetryPacket<double>>> AllHistories() => _history.Values.ToList();
 
     public IReadOnlyCollection<string> SeededSensorIds => _history.Keys.ToList();
 }
