@@ -21,6 +21,13 @@ main {
     align-items: center;
 }
 
+.top-row-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #5a6270;
+    letter-spacing: 0.02em;
+}
+
     .top-row ::deep a, .top-row ::deep .btn-link {
         white-space: nowrap;
         margin-left: 1.5rem;
