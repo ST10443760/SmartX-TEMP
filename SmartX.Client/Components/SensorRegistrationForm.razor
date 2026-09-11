@@ -1,0 +1,207 @@
+@using System.ComponentModel.DataAnnotations
+@using SmartX.Shared.Dtos
+@using SmartX.Shared.Enums
+@using SmartX.Shared.Models
+@inject SmartX.Client.Services.SmartXApiClient Api
+
+<EditForm Model="_model" OnValidSubmit="SubmitAsync" class="registration-form">
+    <DataAnnotationsValidator />
+
+    <div class="field">
+        <label for="mac">Device MAC Address / Unique Identifier</label>
+        <InputText id="mac" @bind-Value="_model.MacAddress" placeholder="AA:BB:CC:DD:EE:FF" />
+        <ValidationMessage For="() => _model.MacAddress" />
+    </div>
+
+    <div class="field">
+        <label for="category">Sensor Category</label>
+        <InputSelect id="category" @bind-Value="_model.Category">
+            @foreach (var category in Enum.GetValues<SensorCategory>())
+            {
+                <option value="@category">@category</option>
+            }
+        </InputSelect>
+    </div>
+
+    <div class="field">
+        <label>Deployment Location</label>
+
+        @if (Root is null)
+        {
+            <p class="muted">Loading deployment tree...</p>
+        }
+        else
+        {
+            <div class="path-picker">
+                <span class="path-crumb path-crumb-root">@Root.Name</span>
+                @for (var level = 0; level < _chain.Count; level++)
+                {
+                    var currentNode = _chain[level];
+                    if (currentNode.Children.Count == 0)
+                    {
+                        break;
+                    }
+
+                    var levelIndex = level;
+                    <span class="path-arrow">→</span>
+                    <select class="path-select" @onchange="e => OnLevelSelected(levelIndex, (string)e.Value!)">
+                        <option value="">Select @DescribeLevel(currentNode.Children[0].Type)...</option>
+                        @foreach (var child in currentNode.Children)
+                        {
+                            var selected = _chain.Count > levelIndex + 1 && _chain[levelIndex + 1].Name == child.Name;
+                            <option value="@child.Name" selected="@selected">@child.Name</option>
+                        }
+                    </select>
+                }
+            </div>
+
+            <p class="path-preview">
+                Path: <strong>@string.Join(" → ", _chain.Select(n => n.Name))</strong>
+            </p>
+
+            @if (_pathTooShallow)
+            {
+                <p class="field-error">Select at least one location below the root facility.</p>
+            }
+        }
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_serverError))
+    {
+        <div class="alert-error">@_serverError</div>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(_successMessage))
+    {
+        <div class="alert-success">@_successMessage</div>
+    }
+
+    <button type="submit" class="btn-primary" disabled="@_isSubmitting">
+        @(_isSubmitting ? "Registering..." : "Register Sensor")
+    </button>
+</EditForm>
+
+<style>
+    .registration-form { max-width: 560px; }
+    .field { margin-bottom: 1.1rem; }
+    .field label { display: block; font-size: 0.85rem; font-weight: 600; margin-bottom: 0.3rem; color: #333; }
+    .field input, .field select { width: 100%; padding: 0.5rem 0.6rem; border-radius: 6px; border: 1px solid #cfd4db; font-size: 0.9rem; }
+    .muted { color: #9aa1ab; font-size: 0.85rem; }
+    .path-picker { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
+    .path-crumb-root { font-weight: 700; background: #eef0ff; padding: 0.3rem 0.6rem; border-radius: 6px; font-size: 0.85rem; }
+    .path-arrow { color: #9aa1ab; }
+    .path-select { width: auto; min-width: 140px; }
+    .path-preview { font-size: 0.8rem; color: #5a6270; margin-top: 0.5rem; }
+    .field-error { color: #c1341f; font-size: 0.8rem; margin-top: 0.3rem; }
+    .alert-error { background: #fdecea; color: #a33025; padding: 0.6rem 0.8rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 1rem; }
+    .alert-success { background: #e6f4ea; color: #1e7b34; padding: 0.6rem 0.8rem; border-radius: 6px; font-size: 0.85rem; margin-bottom: 1rem; }
+    .btn-primary { background: #6a5acd; color: white; border: none; padding: 0.6rem 1.3rem; border-radius: 8px; font-size: 0.9rem; cursor: pointer; }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    ::deep .validation-message { color: #c1341f; font-size: 0.78rem; display: block; margin-top: 0.25rem; }
+</style>
+
+@code {
+    [Parameter, EditorRequired]
+    public DeploymentNode? Root { get; set; }
+
+    [Parameter]
+    public EventCallback OnRegistered { get; set; }
+
+    private readonly SensorRegistrationFormModel _model = new();
+    private List<DeploymentNode> _chain = [];
+    private bool _pathTooShallow;
+    private bool _isSubmitting;
+    private string? _serverError;
+    private string? _successMessage;
+
+    protected override void OnParametersSet()
+    {
+        if (Root is not null && _chain.Count == 0)
+        {
+            _chain = [Root];
+        }
+    }
+
+    private void OnLevelSelected(int level, string selectedName)
+    {
+        // Truncate anything below this level, then descend into the chosen child.
+        _chain = _chain.Take(level + 1).ToList();
+
+        if (string.IsNullOrEmpty(selectedName))
+        {
+            return;
+        }
+
+        var parent = _chain[level];
+        var child = parent.Children.FirstOrDefault(c => c.Name == selectedName);
+        if (child is not null)
+        {
+            _chain.Add(child);
+        }
+    }
+
+    private static string DescribeLevel(DeploymentNodeType type) => type switch
+    {
+        DeploymentNodeType.Facility => "facility",
+        DeploymentNodeType.Zone => "zone",
+        DeploymentNodeType.SubZone => "sub-zone",
+        DeploymentNodeType.Room => "room",
+        DeploymentNodeType.Node => "node",
+        _ => "level"
+    };
+
+    private async Task SubmitAsync()
+    {
+        _serverError = null;
+        _successMessage = null;
+        _pathTooShallow = _chain.Count < 2;
+
+        if (_pathTooShallow)
+        {
+            return;
+        }
+
+        _isSubmitting = true;
+        try
+        {
+            var request = new SensorRegistrationRequest
+            {
+                MacAddress = _model.MacAddress.Trim().ToUpperInvariant(),
+                DeploymentPathSegments = _chain.Select(n => n.Name).ToList(),
+                Category = _model.Category
+            };
+
+            var result = await Api.RegisterSensorAsync(request);
+
+            if (result.Success)
+            {
+                _successMessage = $"Sensor {request.MacAddress} registered successfully.";
+                _model.MacAddress = string.Empty;
+                _chain = Root is null ? [] : [Root];
+                await OnRegistered.InvokeAsync();
+            }
+            else
+            {
+                _serverError = result.ErrorMessage ?? "Registration failed for an unknown reason.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _serverError = $"Could not reach the Smart-X API: {ex.Message}";
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private sealed class SensorRegistrationFormModel
+    {
+        [Required(ErrorMessage = "MAC address / unique identifier is required.")]
+        [RegularExpression(@"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$", ErrorMessage = "Use MAC format AA:BB:CC:DD:EE:FF.")]
+        public string MacAddress { get; set; } = string.Empty;
+
+        [Required]
+        public SensorCategory Category { get; set; } = SensorCategory.Environmental;
+    }
+}
