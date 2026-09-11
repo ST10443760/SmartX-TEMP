@@ -1,0 +1,39 @@
+@SmartX.Api_HostAddress = http://localhost:5074
+
+### Root health check
+GET {{SmartX.Api_HostAddress}}/
+
+### Deployment tree
+GET {{SmartX.Api_HostAddress}}/api/deployment-tree
+
+### List all registered sensors
+GET {{SmartX.Api_HostAddress}}/api/sensors
+
+### Get one sensor
+GET {{SmartX.Api_HostAddress}}/api/sensors/24:6F:28:A1:00:01
+
+### Register a new sensor (valid path)
+POST {{SmartX.Api_HostAddress}}/api/sensors
+Content-Type: application/json
+
+{
+  "macAddress": "AA:BB:CC:DD:EE:FF",
+  "deploymentPathSegments": ["Smart-X Root", "Facility A", "Zone 1", "Sub-Zone B", "Node 12"],
+  "category": 0
+}
+
+### Register a sensor with an invalid/broken deployment path (expect 400)
+POST {{SmartX.Api_HostAddress}}/api/sensors
+Content-Type: application/json
+
+{
+  "macAddress": "11:22:33:44:55:66",
+  "deploymentPathSegments": ["Smart-X Root", "Facility A", "Zone 9", "Ghost Node"],
+  "category": 0
+}
+
+### Live telemetry pulses (Mesh Pulse engagement feed)
+GET {{SmartX.Api_HostAddress}}/api/telemetry/pulses
+
+### Flattened historical readings for a seeded sensor
+GET {{SmartX.Api_HostAddress}}/api/telemetry/history/24:6F:28:A1:00:01?take=10
