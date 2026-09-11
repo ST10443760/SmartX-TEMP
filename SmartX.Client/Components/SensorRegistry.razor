@@ -1,0 +1,166 @@
+@using Microsoft.AspNetCore.Components.Forms
+@using SmartX.Shared.Models
+@inject SmartX.Client.Services.SmartXApiClient Api
+
+<div class="registry">
+    @if (Sensors.Count == 0)
+    {
+        <p class="muted">No sensors registered yet.</p>
+    }
+    else
+    {
+        <table class="registry-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>MAC Address</th>
+                    <th>Category</th>
+                    <th>Deployment Path</th>
+                    <th>Attachments</th>
+                    <th>Registered</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var sensor in Sensors)
+                {
+                    <tr class="registry-row" @onclick="() => ToggleExpand(sensor.MacAddress)">
+                        <td class="expand-cell">@(IsExpanded(sensor.MacAddress) ? "▾" : "▸")</td>
+                        <td class="mono">@sensor.MacAddress</td>
+                        <td><span class="category-badge category-@sensor.Category">@sensor.Category</span></td>
+                        <td class="mono small">@sensor.DeploymentPath</td>
+                        <td>@sensor.Attachments.Count</td>
+                        <td class="small">@sensor.RegisteredAtUtc.ToLocalTime().ToString("g")</td>
+                    </tr>
+
+                    @if (IsExpanded(sensor.MacAddress))
+                    {
+                        <tr class="detail-row">
+                            <td colspan="6">
+                                <div class="detail-panel">
+                                    <div class="attachments">
+                                        <h4>Attachments</h4>
+                                        @if (sensor.Attachments.Count == 0)
+                                        {
+                                            <p class="muted small">No files attached.</p>
+                                        }
+                                        else
+                                        {
+                                            <ul>
+                                                @foreach (var attachment in sensor.Attachments)
+                                                {
+                                                    <li>
+                                                        <a href="@DownloadUrl(sensor.MacAddress, attachment)" target="_blank">@attachment.FileName</a>
+                                                        <span class="muted small">(@FormatSize(attachment.SizeBytes))</span>
+                                                    </li>
+                                                }
+                                            </ul>
+                                        }
+                                    </div>
+
+                                    <div class="upload">
+                                        <h4>Attach Config / Photo / Log</h4>
+                                        <InputFile OnChange="e => UploadAsync(sensor.MacAddress, e)" />
+                                        @if (_uploadingMac == sensor.MacAddress)
+                                        {
+                                            <p class="muted small">Uploading...</p>
+                                        }
+                                        @if (_uploadErrors.TryGetValue(sensor.MacAddress, out var err))
+                                        {
+                                            <p class="field-error small">@err</p>
+                                        }
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<style>
+    .registry-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .registry-table th { text-align: left; padding: 0.5rem; border-bottom: 2px solid #e2e5ea; color: #5a6270; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    .registry-row { cursor: pointer; }
+    .registry-row:hover { background: #f7f8fa; }
+    .registry-row td { padding: 0.55rem 0.5rem; border-bottom: 1px solid #eef0f2; }
+    .expand-cell { width: 1.5rem; color: #9aa1ab; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .small { font-size: 0.78rem; color: #5a6270; }
+    .muted { color: #9aa1ab; }
+    .category-badge { padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+    .category-Environmental { background: #e6f4ea; color: #1e7b34; }
+    .category-PowerConsumption { background: #fff2e0; color: #a35c00; }
+    .category-Actuator { background: #eef0ff; color: #4338ca; }
+    .detail-row td { padding: 0; border-bottom: 1px solid #eef0f2; background: #fafbfc; }
+    .detail-panel { display: flex; gap: 2rem; padding: 1rem 1.5rem; flex-wrap: wrap; }
+    .detail-panel h4 { font-size: 0.8rem; margin: 0 0 0.5rem; }
+    .detail-panel ul { margin: 0; padding-left: 1.1rem; }
+    .field-error { color: #c1341f; }
+</style>
+
+@code {
+    [Parameter, EditorRequired]
+    public List<SensorRecord> Sensors { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnAttachmentUploaded { get; set; }
+
+    [Parameter]
+    public string ApiBaseUrl { get; set; } = "http://localhost:5074/";
+
+    private readonly HashSet<string> _expanded = [];
+    private readonly Dictionary<string, string> _uploadErrors = [];
+    private string? _uploadingMac;
+
+    private bool IsExpanded(string mac) => _expanded.Contains(mac);
+
+    private void ToggleExpand(string mac)
+    {
+        if (!_expanded.Add(mac))
+        {
+            _expanded.Remove(mac);
+        }
+    }
+
+    private string DownloadUrl(string mac, SensorAttachment attachment)
+        => $"{ApiBaseUrl.TrimEnd('/')}/api/sensors/{Uri.EscapeDataString(mac)}/attachments/{attachment.Id}/download";
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024 => $"{bytes} B",
+        < 1024 * 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes / (1024.0 * 1024):0.#} MB"
+    };
+
+    private async Task UploadAsync(string mac, InputFileChangeEventArgs e)
+    {
+        _uploadErrors.Remove(mac);
+        _uploadingMac = mac;
+
+        try
+        {
+            const long maxSize = 25 * 1024 * 1024;
+            await using var stream = e.File.OpenReadStream(maxSize);
+            var (success, error, _) = await Api.UploadAttachmentAsync(mac, e.File.Name, e.File.ContentType, stream);
+
+            if (success)
+            {
+                await OnAttachmentUploaded.InvokeAsync();
+            }
+            else
+            {
+                _uploadErrors[mac] = error ?? "Upload failed.";
+            }
+        }
+        catch (Exception ex)
+        {
+            _uploadErrors[mac] = ex.Message;
+        }
+        finally
+        {
+            _uploadingMac = null;
+        }
+    }
+}
