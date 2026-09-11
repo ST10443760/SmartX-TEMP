@@ -1,0 +1,72 @@
+@page "/telemetry"
+@using SmartX.Shared.Models
+@inject SmartX.Client.Services.SmartXApiClient Api
+
+<PageTitle>Sensor Data Ingestion &amp; Telemetry - Smart-X Gateway</PageTitle>
+
+<h1>Sensor Data Ingestion &amp; Telemetry</h1>
+<p class="page-intro">
+    Register simulated sensor nodes, validate their deployment location against the
+    site hierarchy, attach configs/photos/logs, and watch the mesh pulse live.
+</p>
+
+<MeshPulseWidget />
+
+<div class="tab-strip">
+    <button class="tab-btn @(_activeTab == Tab.Register ? "active" : "")" @onclick="() => _activeTab = Tab.Register">
+        Register Sensor
+    </button>
+    <button class="tab-btn @(_activeTab == Tab.Registry ? "active" : "")" @onclick="() => _activeTab = Tab.Registry">
+        Sensor Registry (@_sensors.Count)
+    </button>
+</div>
+
+<div class="tab-panel">
+    @if (_isLoading)
+    {
+        <p class="muted">Loading...</p>
+    }
+    else if (_activeTab == Tab.Register)
+    {
+        <SensorRegistrationForm Root="_deploymentRoot" OnRegistered="RefreshSensorsAsync" />
+    }
+    else
+    {
+        <SensorRegistry Sensors="_sensors" OnAttachmentUploaded="RefreshSensorsAsync" />
+    }
+</div>
+
+<style>
+    .page-intro { color: #5a6270; max-width: 640px; margin-bottom: 1.5rem; }
+    .tab-strip { display: flex; gap: 0.5rem; border-bottom: 1px solid #e2e5ea; margin: 1.5rem 0 1.25rem; }
+    .tab-btn { background: none; border: none; padding: 0.6rem 0.2rem; margin-right: 1.25rem; font-size: 0.9rem; color: #5a6270; cursor: pointer; border-bottom: 2px solid transparent; }
+    .tab-btn.active { color: #4338ca; border-bottom-color: #6a5acd; font-weight: 600; }
+    .muted { color: #9aa1ab; }
+</style>
+
+@code {
+    private enum Tab { Register, Registry }
+
+    private Tab _activeTab = Tab.Register;
+    private DeploymentNode? _deploymentRoot;
+    private List<SensorRecord> _sensors = [];
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _deploymentRoot = await Api.GetDeploymentTreeAsync();
+            _sensors = await Api.GetSensorsAsync();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private async Task RefreshSensorsAsync()
+    {
+        _sensors = await Api.GetSensorsAsync();
+    }
+}
