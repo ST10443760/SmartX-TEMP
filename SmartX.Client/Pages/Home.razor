@@ -1,7 +1,107 @@
-﻿@page "/"
+@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Smart-X Gateway</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="landing">
+    <h1>Smart-X IoT Mesh Gateway</h1>
+    <p class="lead">
+        Central console for the Smart-X ecosystem: ingest telemetry from simulated
+        ESP32-style nodes, issue commands, and (eventually) visualise the mesh
+        network these nodes hop across.
+    </p>
 
-Welcome to your new app.
+    <div class="pillar-grid">
+        <a class="pillar-card active" href="telemetry">
+            <div class="pillar-icon">📡</div>
+            <h2>Sensor Data Ingestion &amp; Telemetry</h2>
+            <p>Register sensors, validate their deployment location, attach configs/logs, and watch live telemetry.</p>
+            <span class="pillar-status pillar-status-active">Open</span>
+        </a>
+
+        <div class="pillar-card disabled">
+            <div class="pillar-icon">⚡</div>
+            <h2>Real-Time Command Stream &amp; History</h2>
+            <p>Priority-queued alerts, manual overrides with undo, and predictive action suggestions.</p>
+            <span class="pillar-status">Part 2</span>
+        </div>
+
+        <div class="pillar-card disabled">
+            <div class="pillar-icon">🕸️</div>
+            <h2>Network Topology &amp; Mesh Routing</h2>
+            <p>Graph the physical mesh, traverse it, and compute the most power-efficient routing tree.</p>
+            <span class="pillar-status">Final PoE</span>
+        </div>
+    </div>
+</div>
+
+<style>
+    .landing {
+        max-width: 900px;
+    }
+
+    .lead {
+        color: #5a6270;
+        margin-bottom: 2rem;
+    }
+
+    .pillar-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.25rem;
+    }
+
+    .pillar-card {
+        display: block;
+        border-radius: 12px;
+        padding: 1.5rem;
+        border: 1px solid #e2e5ea;
+        background: #fff;
+        text-decoration: none;
+        color: inherit;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .pillar-card.active:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 8px 20px rgba(20, 30, 60, 0.08);
+        border-color: #6a5acd;
+    }
+
+    .pillar-card.disabled {
+        background: #f5f6f8;
+        color: #9aa1ab;
+        cursor: not-allowed;
+    }
+
+    .pillar-icon {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .pillar-card h2 {
+        font-size: 1.05rem;
+        margin: 0 0 0.5rem;
+    }
+
+    .pillar-card p {
+        font-size: 0.9rem;
+        margin: 0 0 1rem;
+    }
+
+    .pillar-status {
+        display: inline-block;
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: #eceef2;
+        color: #6b7280;
+    }
+
+    .pillar-status-active {
+        background: #e6f4ea;
+        color: #1e7b34;
+    }
+</style>
