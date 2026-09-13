@@ -53,10 +53,21 @@
     .nav-item ::deep a {
         color: #d7d7d7;
         border-radius: 4px;
-        height: 3rem;
+        min-height: 3rem;
         display: flex;
         align-items: center;
-        line-height: 3rem;
+        line-height: 1.3;
+        padding: 0.5rem 0.75rem;
+        gap: 0.6rem;
+    }
+
+    .nav-item ::deep a .bi {
+        margin-right: 0;
+        flex-shrink: 0;
+    }
+
+    .nav-item ::deep a .nav-link-text {
+        flex: 1 1 auto;
     }
 
 .nav-item ::deep a.active {
@@ -71,8 +82,7 @@
 
 .nav-item ::deep a.nav-link-disabled {
     color: #8b93a1;
-    justify-content: space-between;
-    padding-right: 0.75rem;
+    cursor: default;
 }
 
 .nav-item ::deep a.nav-link-disabled:hover {
@@ -81,6 +91,7 @@
 }
 
 .badge-locked {
+    flex-shrink: 0;
     font-size: 0.65rem;
     font-weight: 600;
     letter-spacing: 0.03em;
