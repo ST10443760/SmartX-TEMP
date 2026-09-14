@@ -107,9 +107,6 @@
     [Parameter]
     public EventCallback OnAttachmentUploaded { get; set; }
 
-    [Parameter]
-    public string ApiBaseUrl { get; set; } = "http://localhost:5074/";
-
     private readonly HashSet<string> _expanded = [];
     private readonly Dictionary<string, string> _uploadErrors = [];
     private string? _uploadingMac;
@@ -125,7 +122,7 @@
     }
 
     private string DownloadUrl(string mac, SensorAttachment attachment)
-        => $"{ApiBaseUrl.TrimEnd('/')}/api/sensors/{Uri.EscapeDataString(mac)}/attachments/{attachment.Id}/download";
+        => Api.BuildAttachmentDownloadUrl(mac, attachment.Id).ToString();
 
     private static string FormatSize(long bytes) => bytes switch
     {

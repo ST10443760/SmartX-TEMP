@@ -51,4 +51,15 @@ public sealed class SmartXApiClient(HttpClient http)
 
     public async Task<List<TelemetryPacket<double>>> GetHistoryAsync(string sensorId, int take = 20, CancellationToken ct = default)
         => await http.GetFromJsonAsync<List<TelemetryPacket<double>>>($"api/telemetry/history/{Uri.EscapeDataString(sensorId)}?take={take}", ct) ?? [];
+
+    /// <summary>
+    /// Builds the absolute download URL for an attachment, resolved against
+    /// this same client's configured <see cref="HttpClient.BaseAddress"/> -
+    /// the one place the API's base address is configured (see
+    /// SmartX.Client/Program.cs) - rather than a second, independently
+    /// hardcoded URL. Needed because this is rendered as a plain <c>&lt;a
+    /// href&gt;</c> for the browser to follow directly, not an HttpClient call.
+    /// </summary>
+    public Uri BuildAttachmentDownloadUrl(string macAddress, Guid attachmentId)
+        => new(http.BaseAddress!, $"api/sensors/{Uri.EscapeDataString(macAddress)}/attachments/{attachmentId}/download");
 }

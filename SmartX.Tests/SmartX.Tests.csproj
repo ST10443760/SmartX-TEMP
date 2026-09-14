@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SmartX.Shared\SmartX.Shared.csproj" />
+    <ProjectReference Include="..\SmartX.Client\SmartX.Client.csproj" />
   </ItemGroup>
 
 </Project>
