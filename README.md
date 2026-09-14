@@ -1,11 +1,8 @@
 # Smart-X IoT Mesh Gateway — Part 1
 
-Part 1 of the Smart-X IoT Mesh Ecosystem: the **Sensor Data Ingestion and
-Validation Gateway**. A simulated network of ESP32-style nodes (hydroponic
-moisture sensors, smart power meters, actuators) registers itself against a
-central .NET gateway, which validates each device's deployment location,
-accepts config/log/photo attachments, and drives a live "Mesh Pulse"
-dashboard widget.
+📺 Demo video: https://youtu.be/y5HmTqGUoi8
+
+Part 1 of the Smart-X IoT Mesh Ecosystem: the Sensor Data Ingestion and Validation Gateway. A simulated network of ESP32-style nodes (hydroponic moisture sensors, smart power meters, actuators) registers itself against a central .NET gateway, which validates each device's deployment location, accepts config/log/photo attachments, and drives a live "Mesh Pulse" dashboard widget.
 
 Two more parts build directly on top of this one later in the semester
 (real-time command streaming in Part 2, mesh graph routing in the final
