@@ -101,6 +101,16 @@ public sealed class LiveStateContainer
         NotifyChanged();
     }
 
+    // ---- Automated Action Engine ----
+
+    public InsightsSnapshot Insights { get; private set; } = new();
+
+    public void SetInsights(InsightsSnapshot insights)
+    {
+        Insights = insights;
+        NotifyChanged();
+    }
+
     // ---- Writers (called by the hub connection and snapshot sync) ----
 
     public void SetConnectionStatus(HubConnectionStatus status, string? detail = null)
