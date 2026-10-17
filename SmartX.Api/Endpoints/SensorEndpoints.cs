@@ -25,7 +25,7 @@ public static class SensorEndpoints
             .WithName("GetSensorByMac")
             .WithSummary("Fetches a single sensor by MAC address / unique identifier.");
 
-        group.MapPost("/", (SensorRegistrationRequest request, SensorLedger ledger, DeploymentNode deploymentRoot) =>
+        group.MapPost("/", (SensorRegistrationRequest request, SensorLedger ledger, DeploymentNode deploymentRoot, LiveDeviceRegistrar registrar) =>
             {
                 if (string.IsNullOrWhiteSpace(request.MacAddress))
                 {
@@ -68,6 +68,8 @@ public static class SensorEndpoints
                 {
                     return Results.Conflict(SensorRegistrationResult.Fail(ex.Message));
                 }
+
+                registrar.Track(sensor);
 
                 return Results.Created($"/api/sensors/{sensor.MacAddress}", SensorRegistrationResult.Ok(sensor.Id));
             })
