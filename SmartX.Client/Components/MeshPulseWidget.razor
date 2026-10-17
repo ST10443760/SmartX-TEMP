@@ -26,7 +26,7 @@
                 <div class="pulse-node quality-@pulse.Quality" title="@pulse.SensorId">
                     <div class="pulse-ring"></div>
                     <div class="pulse-core">
-                        <span class="pulse-value">@pulse.Value.ToString("0.#")@pulse.Unit</span>
+                        <span class="pulse-value">@FormatValue(pulse)</span>
                     </div>
                     <div class="pulse-label">
                         <span class="pulse-id">@Truncate(pulse.SensorId)</span>
@@ -157,6 +157,9 @@
     }
 
     private static string Truncate(string sensorId) => sensorId.Length <= 11 ? sensorId : sensorId[^11..];
+
+    private static string FormatValue(TelemetryPulse pulse)
+        => pulse.Unit == "state" ? (pulse.Value >= 0.5 ? "ON" : "OFF") : $"{pulse.Value:0.#}{pulse.Unit}";
 
     public async ValueTask DisposeAsync()
     {
