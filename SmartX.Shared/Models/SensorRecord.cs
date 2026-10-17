@@ -13,9 +13,15 @@ public sealed class SensorRecord
 
     public required string MacAddress { get; init; }
 
+    /// <summary>Human-friendly name operators search by, e.g. "Moisture Sensor B" or "Pump A".</summary>
+    public string DisplayName { get; init; } = "";
+
     public required DeploymentPath DeploymentPath { get; init; }
 
     public required SensorCategory Category { get; init; }
+
+    /// <summary>Only meaningful when <see cref="Category"/> is Actuator.</summary>
+    public ActuatorKind ActuatorKind { get; init; } = ActuatorKind.None;
 
     public DateTimeOffset RegisteredAtUtc { get; init; } = DateTimeOffset.UtcNow;
 

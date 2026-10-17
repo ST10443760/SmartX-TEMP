@@ -11,4 +11,10 @@ public sealed class SensorRegistrationRequest
     public required List<string> DeploymentPathSegments { get; init; }
 
     public required SensorCategory Category { get; init; }
+
+    /// <summary>Optional friendly name; falls back to the MAC address when omitted.</summary>
+    public string? DisplayName { get; init; }
+
+    /// <summary>Optional, actuators only - what the device drives (pump/valve/relay).</summary>
+    public ActuatorKind? ActuatorKind { get; init; }
 }
