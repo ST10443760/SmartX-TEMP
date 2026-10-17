@@ -14,6 +14,7 @@
                 <tr>
                     <th></th>
                     <th>MAC Address</th>
+                    <th>Name</th>
                     <th>Category</th>
                     <th>Deployment Path</th>
                     <th>Attachments</th>
@@ -26,6 +27,7 @@
                     <tr class="registry-row" @onclick="() => ToggleExpand(sensor.MacAddress)">
                         <td class="expand-cell">@(IsExpanded(sensor.MacAddress) ? "▾" : "▸")</td>
                         <td class="mono">@sensor.MacAddress</td>
+                        <td>@sensor.DisplayName</td>
                         <td><span class="category-badge category-@sensor.Category">@sensor.Category</span></td>
                         <td class="mono small">@sensor.DeploymentPath</td>
                         <td>@sensor.Attachments.Count</td>
@@ -35,7 +37,7 @@
                     @if (IsExpanded(sensor.MacAddress))
                     {
                         <tr class="detail-row">
-                            <td colspan="6">
+                            <td colspan="7">
                                 <div class="detail-panel">
                                     <div class="attachments">
                                         <h4>Attachments</h4>
