@@ -1,4 +1,4 @@
-using SmartX.Shared.Collections;
+using SmartX.Api.Services;
 using SmartX.Shared.Enums;
 using SmartX.Shared.Realtime;
 
@@ -16,11 +16,12 @@ public static class SimulationEndpoints
     {
         var group = app.MapGroup("/api/simulate").WithTags("Simulation");
 
-        group.MapPost("/critical-alert", (string? mac, SensorLedger ledger, IngestionPipeline pipeline) =>
+        group.MapPost("/critical-alert", (string? mac, DeviceDirectory directory, IngestionPipeline pipeline) =>
             {
+                var devices = directory.Snapshot();
                 var target = string.IsNullOrWhiteSpace(mac)
-                    ? ledger.FirstOrDefault(s => s.Category == SensorCategory.Environmental)
-                    : ledger.FindByMacAddress(mac);
+                    ? devices.FirstOrDefault(d => d.Category == SensorCategory.Environmental)
+                    : devices.FirstOrDefault(d => string.Equals(d.MacAddress, mac, StringComparison.OrdinalIgnoreCase));
 
                 if (target is null || target.Category == SensorCategory.Actuator)
                 {
@@ -33,13 +34,13 @@ public static class SimulationEndpoints
                 // A backlog of routine packets queued FIRST, then the critical
                 // one LAST, all in one atomic batch. The worker still processes
                 // the critical packet before any of the backlog.
-                var backlog = ledger
-                    .Where(s => s.Category != SensorCategory.Actuator && s.MacAddress != target.MacAddress)
+                var backlog = devices
+                    .Where(d => d.Category != SensorCategory.Actuator && d.MacAddress != target.MacAddress)
                     .OrderBy(_ => rng.Next())
                     .Take(BacklogSize)
-                    .Select(s => s.Category == SensorCategory.Environmental
-                        ? new QueuedReading(s.MacAddress, ReadingKind.Moisture, Math.Round(35 + rng.NextDouble() * 20, 1), "%", now, AlertSeverity.Normal)
-                        : new QueuedReading(s.MacAddress, ReadingKind.Wattage, rng.Next(300, 900), "W", now, AlertSeverity.Normal))
+                    .Select(d => d.Category == SensorCategory.Environmental
+                        ? new QueuedReading(d.MacAddress, ReadingKind.Moisture, Math.Round(35 + rng.NextDouble() * 20, 1), "%", now, AlertSeverity.Normal)
+                        : new QueuedReading(d.MacAddress, ReadingKind.Wattage, rng.Next(300, 900), "W", now, AlertSeverity.Normal))
                     .ToList();
 
                 var critical = target.Category == SensorCategory.Environmental
@@ -57,5 +58,33 @@ public static class SimulationEndpoints
             })
             .WithName("SimulateCriticalAlert")
             .WithSummary("Queues a routine backlog followed by one critical packet to demonstrate the priority bypass.");
+
+        group.MapPost("/disconnect/{mac}", async (string mac, DeviceDirectory directory, DisconnectDetector detector, AlertBroadcaster alerts) =>
+            {
+                if (!directory.TryGet(mac, out var device) || device is null)
+                {
+                    return Results.NotFound($"Unknown device '{mac}'.");
+                }
+
+                var isNew = detector.ForceDisconnect(device.MacAddress, DateTime.UtcNow);
+                if (isNew)
+                {
+                    await alerts.RaisedAsync(device.MacAddress, AlertKind.Disconnected, "was marked disconnected (simulated)");
+                }
+                else
+                {
+                    await alerts.DuplicateSuppressedAsync(device.MacAddress, AlertKind.Disconnected);
+                }
+
+                return Results.Ok(new
+                {
+                    newAlert = isNew,
+                    message = isNew
+                        ? $"{device.DisplayName} added to the disconnected set - alert raised."
+                        : $"{device.DisplayName} is already in the disconnected set - duplicate ignored, no second alert."
+                });
+            })
+            .WithName("SimulateDisconnect")
+            .WithSummary("Marks a node disconnected. Calling it twice shows the HashSet ignoring the duplicate.");
     }
 }
