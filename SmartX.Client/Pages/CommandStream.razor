@@ -3,6 +3,7 @@
 @using SmartX.Client.Services
 @using SmartX.Shared.Dtos
 @inject LiveStateContainer State
+@inject SmartXApiClient Api
 
 <PageTitle>Command Stream &amp; History - Smart-X Gateway</PageTitle>
 
@@ -15,42 +16,52 @@
 <QueueStatsBar />
 
 <div class="stream-grid">
-    <section class="card card-devices">
-        <h3>Devices</h3>
-        <DeviceFilterBar OnSearchCommitted="OnSearchCommittedAsync" />
-        <DeviceTable />
-    </section>
+    <div class="col-main">
+        <section class="card">
+            <h3>Devices</h3>
+            <DeviceFilterBar OnSearchCommitted="OnSearchCommittedAsync" />
+            <DeviceTable />
+        </section>
 
-    <section class="card card-overrides">
-        <h3>Manual overrides</h3>
-        <OverridePanel OnCommandIssued="OnCommandIssuedAsync" />
-    </section>
+        <section class="card">
+            <h3>Device timeline</h3>
+            <DeviceTimeline />
+        </section>
+    </div>
 
-    <section class="card card-timeline">
-        <h3>Device timeline</h3>
-        <DeviceTimeline />
-    </section>
+    <div class="col-side">
+        <section class="card card-insights">
+            <h3>Suggested Actions &amp; Automated Insights <span class="live-tag">live</span></h3>
+            <SuggestedActionsPanel OnSearchChosen="OnSearchCommittedAsync" />
+        </section>
 
-    <section class="card card-alerts">
-        <h3>Alerts</h3>
-        <AlertPanel />
-    </section>
+        <section class="card">
+            <h3>Manual overrides</h3>
+            <OverridePanel OnCommandIssued="OnCommandIssuedAsync" />
+        </section>
 
-    <section class="card card-feed">
-        <h3>Live feed <span class="muted">(processing order, newest first)</span></h3>
-        <LiveFeed />
-    </section>
+        <section class="card">
+            <h3>Alerts</h3>
+            <AlertPanel />
+        </section>
+    </div>
 </div>
+
+<section class="card card-feed">
+    <h3>Live feed <span class="muted">(processing order, newest first)</span></h3>
+    <LiveFeed />
+</section>
 
 <style>
     .page-intro { color: #5a6270; max-width: 760px; margin-bottom: 1.25rem; }
-    .stream-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .stream-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 1rem; align-items: start; margin-bottom: 1rem; }
+    .col-main, .col-side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
     .card { background: #fff; border: 1px solid #e2e5ea; border-radius: 12px; padding: 1rem 1.1rem; min-width: 0; }
     .card h3 { font-size: 0.98rem; margin: 0 0 0.75rem; }
-    .card-timeline { grid-column: 1; }
-    .card-feed { grid-column: 1 / -1; }
     .muted { color: #9aa1ab; font-size: 0.8rem; font-weight: 400; }
-    @@media (max-width: 1100px) { .stream-grid { grid-template-columns: minmax(0, 1fr); } .card-timeline { grid-column: auto; } }
+    .card-insights { border-color: #c7c2f0; background: linear-gradient(180deg, #f7f6ff 0%, #fff 60%); }
+    .live-tag { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; background: #2fa84f; color: #fff; border-radius: 4px; padding: 0.05rem 0.35rem; vertical-align: middle; }
+    @@media (max-width: 1100px) { .stream-grid { grid-template-columns: minmax(0, 1fr); } }
 </style>
 
 @code {
@@ -58,9 +69,24 @@
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);
 
-    // Batch 5 records these with the insights engine.
-    private Task OnSearchCommittedAsync(string term) => Task.CompletedTask;
+    // Every completed search is sent to the action engine, which answers
+    // with fresh suggestions straight away (commands are recorded server-side).
+    private async Task OnSearchCommittedAsync(string term)
+    {
+        try
+        {
+            if (await Api.RecordSearchAsync(term) is { } insights)
+            {
+                State.SetInsights(insights);
+            }
+        }
+        catch
+        {
+            // Suggestions are best-effort; searching itself still works offline.
+        }
+    }
 
+    // Commands are recorded by the API itself when they execute.
     private Task OnCommandIssuedAsync(OverrideCommandRequest request) => Task.CompletedTask;
 
     public void Dispose() => State.Changed -= OnStateChanged;
