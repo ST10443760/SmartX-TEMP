@@ -122,6 +122,14 @@ public sealed class LiveStateContainer
 
     public void ApplyReading(LiveReading reading)
     {
+        // A reading can arrive twice around a reconnect (once in the REST
+        // snapshot, once pushed over SignalR) - keep the feed unique by its
+        // processing sequence, which is also the list key in the UI.
+        if (_feed.Exists(r => r.ProcessedSequence == reading.ProcessedSequence))
+        {
+            return;
+        }
+
         _feed.Insert(0, reading);
         if (_feed.Count > MaxFeedItems)
         {
@@ -212,10 +220,22 @@ public sealed class LiveStateContainer
             _devices[device.MacAddress] = device;
         }
 
-        if (snapshot.RecentReadings.Count > 0)
+        // The gateway restarted (its sequence counter went backwards): the old
+        // feed belongs to a previous run, so start again from the snapshot.
+        if (_feed.Count > 0 && snapshot.Stats.ProcessedTotal < _feed.Max(r => r.ProcessedSequence))
         {
             _feed.Clear();
-            _feed.AddRange(snapshot.RecentReadings.Take(MaxFeedItems));
+        }
+
+        if (snapshot.RecentReadings.Count > 0)
+        {
+            var merged = snapshot.RecentReadings.Concat(_feed)
+                .DistinctBy(r => r.ProcessedSequence)
+                .OrderByDescending(r => r.ProcessedSequence)
+                .Take(MaxFeedItems)
+                .ToList();
+            _feed.Clear();
+            _feed.AddRange(merged);
         }
 
         ActiveAlerts = snapshot.ActiveAlerts;
