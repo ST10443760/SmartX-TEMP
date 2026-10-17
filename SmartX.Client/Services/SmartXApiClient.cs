@@ -58,6 +58,15 @@ public sealed class SmartXApiClient(HttpClient http)
     public async Task<List<ActiveAlert>> GetActiveAlertsAsync(CancellationToken ct = default)
         => await http.GetFromJsonAsync<List<ActiveAlert>>("api/stream/alerts", ct) ?? [];
 
+    public async Task<InsightsSnapshot?> GetInsightsAsync(CancellationToken ct = default)
+        => await http.GetFromJsonAsync<InsightsSnapshot>("api/insights", ct);
+
+    public async Task<InsightsSnapshot?> RecordSearchAsync(string searchText, CancellationToken ct = default)
+    {
+        var response = await http.PostAsJsonAsync("api/insights/search", new ActivityRequest { SearchText = searchText }, ct);
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<InsightsSnapshot>(ct) : null;
+    }
+
     public async Task<List<LiveReading>> GetTimelineAsync(string mac, int take = 120, CancellationToken ct = default)
         => await http.GetFromJsonAsync<List<LiveReading>>($"api/stream/history/{Uri.EscapeDataString(mac)}?take={take}", ct) ?? [];
 

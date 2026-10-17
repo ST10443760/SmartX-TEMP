@@ -51,6 +51,7 @@ public sealed class TelemetryHubConnection(
         _connection.On<AlertEvent>(HubEvents.Alert, OnAlert);
         _connection.On<QueueStats>(HubEvents.QueueStats, state.SetQueueStats);
         _connection.On<CommandOutcome>(HubEvents.Command, outcome => state.ApplyCommandOutcome(outcome));
+        _connection.On<InsightsSnapshot>(HubEvents.Insights, state.SetInsights);
 
         _connection.Reconnecting += error =>
         {
@@ -159,6 +160,12 @@ public sealed class TelemetryHubConnection(
             if (commands is not null)
             {
                 state.ApplyCommandOutcome(commands);
+            }
+
+            var insights = await api.GetInsightsAsync();
+            if (insights is not null)
+            {
+                state.SetInsights(insights);
             }
         }
         catch
