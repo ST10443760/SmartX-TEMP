@@ -1,0 +1,151 @@
+@* Manual override commands and Undo. The command history shown here IS the server's
+   Stack<T> (top of the stack first); Undo pops it and applies the inverse. *@
+@implements IDisposable
+@using SmartX.Client.Services
+@using SmartX.Shared.Dtos
+@using SmartX.Shared.Enums
+@inject LiveStateContainer State
+@inject SmartXApiClient Api
+
+<div class="overrides">
+    <div class="override-actions">
+        <button class="btn-cmd btn-cmd-wide" @onclick="() => RunAsync(OverrideCommandType.CloseAllValves, null)" disabled="@_busy">Close all valves</button>
+        <button class="btn-undo" @onclick="UndoAsync" disabled="@_busy" title="Pop the last command off the stack and reverse it">
+            ↶ Undo @(State.CommandHistory.Count > 0 ? $"({State.CommandHistory.Count})" : "")
+        </button>
+    </div>
+
+    @if (!string.IsNullOrEmpty(State.LastCommandMessage))
+    {
+        <div class="cmd-message @(State.LastCommandFailed ? "cmd-failed" : "")">@State.LastCommandMessage</div>
+    }
+
+    <ul class="actuator-list">
+        @foreach (var actuator in State.Actuators)
+        {
+            var mac = actuator.MacAddress;
+            <li class="actuator">
+                <span class="act-dot @(actuator.IsOn ? "on" : "off")"></span>
+                <span class="act-name">@actuator.DisplayName</span>
+                <span class="act-state">@StateText(actuator)</span>
+                @switch (actuator.Kind)
+                {
+                    case ActuatorKind.Pump:
+                        <button class="btn-cmd" @onclick="() => RunAsync(OverrideCommandType.TriggerPump, mac)" disabled="@(_busy || actuator.IsOn)">Trigger pump</button>
+                        <button class="btn-cmd btn-cmd-light" @onclick="() => RunAsync(OverrideCommandType.StopPump, mac)" disabled="@(_busy || !actuator.IsOn)">Stop</button>
+                        break;
+                    case ActuatorKind.Relay:
+                        <button class="btn-cmd" @onclick="() => RunAsync(OverrideCommandType.ToggleRelay, mac)" disabled="@_busy">Toggle relay</button>
+                        break;
+                    case ActuatorKind.Valve:
+                        <button class="btn-cmd" @onclick="() => RunAsync(OverrideCommandType.OpenValve, mac)" disabled="@(_busy || actuator.IsOn)">Open valve</button>
+                        break;
+                }
+            </li>
+        }
+    </ul>
+
+    <h4>Command history (stack, newest on top)</h4>
+    @if (State.CommandHistory.Count == 0)
+    {
+        <p class="muted">No commands issued yet - Undo will report that there is nothing to undo.</p>
+    }
+    else
+    {
+        <ol class="history-list">
+            @foreach (var record in State.CommandHistory.Take(10))
+            {
+                <li>
+                    <span class="hist-desc">@record.Description</span>
+                    <span class="hist-time">@record.IssuedUtc.ToLocalTime().ToString("HH:mm:ss")</span>
+                </li>
+            }
+        </ol>
+    }
+</div>
+
+<style>
+    .override-actions { display: flex; gap: 0.5rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+    .btn-cmd { background: #6a5acd; color: #fff; border: none; border-radius: 6px; padding: 0.3rem 0.65rem; font-size: 0.76rem; cursor: pointer; white-space: nowrap; }
+    .btn-cmd-light { background: #eceef2; color: #374151; }
+    .btn-cmd-wide { padding: 0.45rem 0.9rem; font-size: 0.82rem; }
+    .btn-cmd:disabled { opacity: 0.45; cursor: default; }
+    .btn-undo { background: #fff; color: #4338ca; border: 1px solid #6a5acd; border-radius: 6px; padding: 0.45rem 0.9rem; font-size: 0.82rem; font-weight: 600; cursor: pointer; }
+    .btn-undo:disabled { opacity: 0.5; }
+    .cmd-message { font-size: 0.78rem; padding: 0.4rem 0.6rem; border-radius: 6px; background: #e6f4ea; color: #1e7b34; margin-bottom: 0.6rem; }
+    .cmd-failed { background: #fdecea; color: #a33025; }
+    .actuator-list { list-style: none; margin: 0 0 0.9rem; padding: 0; }
+    .actuator { display: flex; align-items: center; gap: 0.45rem; padding: 0.35rem 0; border-bottom: 1px solid #f0f1f3; font-size: 0.8rem; flex-wrap: wrap; }
+    .act-dot { width: 0.6rem; height: 0.6rem; border-radius: 50%; }
+    .act-dot.on { background: #2fa84f; box-shadow: 0 0 0 3px #d5f0dc; }
+    .act-dot.off { background: #c4c9d1; }
+    .act-name { font-weight: 600; flex: 1; min-width: 5rem; }
+    .act-state { color: #6b7280; font-size: 0.74rem; min-width: 3.4rem; }
+    .overrides h4 { font-size: 0.85rem; margin: 0 0 0.4rem; }
+    .history-list { margin: 0; padding-left: 1.2rem; font-size: 0.78rem; }
+    .history-list li { padding: 0.15rem 0; }
+    .history-list li:first-child { font-weight: 700; }
+    .hist-time { color: #9aa1ab; font-size: 0.7rem; margin-left: 0.4rem; }
+    .muted { color: #9aa1ab; font-size: 0.8rem; }
+</style>
+
+@code {
+    private bool _busy;
+
+    /// <summary>Raised after a command succeeds, with its description - feeds the insights engine.</summary>
+    [Parameter]
+    public EventCallback<OverrideCommandRequest> OnCommandIssued { get; set; }
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public async Task RunAsync(OverrideCommandType type, string? mac)
+    {
+        _busy = true;
+        try
+        {
+            var request = new OverrideCommandRequest { CommandType = type, TargetMac = mac };
+            var outcome = await Api.ExecuteCommandAsync(request);
+            State.ApplyCommandOutcome(outcome, fromThisClient: true);
+
+            if (outcome.Success)
+            {
+                await OnCommandIssued.InvokeAsync(request);
+            }
+        }
+        catch (Exception ex)
+        {
+            State.ApplyCommandOutcome(new CommandOutcome { Success = false, Message = $"Could not reach the API: {ex.Message}", Actuators = [.. State.Actuators], History = [.. State.CommandHistory] }, fromThisClient: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task UndoAsync()
+    {
+        _busy = true;
+        try
+        {
+            State.ApplyCommandOutcome(await Api.UndoAsync(), fromThisClient: true);
+        }
+        catch (Exception ex)
+        {
+            State.ApplyCommandOutcome(new CommandOutcome { Success = false, Message = $"Could not reach the API: {ex.Message}", Actuators = [.. State.Actuators], History = [.. State.CommandHistory] }, fromThisClient: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string StateText(ActuatorState actuator) => actuator.Kind switch
+    {
+        ActuatorKind.Valve => actuator.IsOn ? "open" : "closed",
+        _ => actuator.IsOn ? "on" : "off"
+    };
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
