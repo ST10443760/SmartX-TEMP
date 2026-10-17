@@ -1,0 +1,81 @@
+@* The server's active alert set (one row per unique error state) and the recent alert
+   transitions pushed over SignalR - raised, recovered, and duplicates the set ignored. *@
+@implements IDisposable
+@using SmartX.Client.Services
+@using SmartX.Shared.Enums
+@inject LiveStateContainer State
+
+<div class="alerts">
+    <h4>Active alert set <span class="count">@State.ActiveAlerts.Count</span></h4>
+    @if (State.ActiveAlerts.Count == 0)
+    {
+        <p class="muted">No active alerts.</p>
+    }
+    else
+    {
+        <ul class="active-list">
+            @foreach (var alert in State.ActiveAlerts)
+            {
+                <li class="active-item kind-@alert.Kind">
+                    <span class="active-kind">@(alert.Kind == AlertKind.Disconnected ? "Disconnected" : "Critical")</span>
+                    <span class="active-name">@alert.DeviceName</span>
+                    <span class="active-since">since @alert.SinceUtc.ToLocalTime().ToString("HH:mm:ss")</span>
+                </li>
+            }
+        </ul>
+    }
+
+    <h4>Alert events</h4>
+    @if (State.AlertEvents.Count == 0)
+    {
+        <p class="muted">Nothing yet.</p>
+    }
+    else
+    {
+        <ul class="event-list">
+            @foreach (var alertEvent in State.AlertEvents.Take(12))
+            {
+                <li class="event-item evt-@alertEvent.EventType">
+                    <span class="evt-tag">@Tag(alertEvent.EventType)</span>
+                    <span class="evt-msg">@alertEvent.Message</span>
+                    <span class="evt-time">@alertEvent.TimestampUtc.ToLocalTime().ToString("HH:mm:ss")</span>
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+<style>
+    .alerts h4 { font-size: 0.85rem; margin: 0 0 0.5rem; display: flex; align-items: center; gap: 0.4rem; }
+    .alerts h4:not(:first-child) { margin-top: 1rem; }
+    .count { background: #d1352b; color: #fff; border-radius: 999px; font-size: 0.68rem; padding: 0.05rem 0.45rem; }
+    .active-list, .event-list { list-style: none; margin: 0; padding: 0; }
+    .active-item { display: flex; gap: 0.5rem; align-items: center; padding: 0.35rem 0.5rem; border-radius: 6px; margin-bottom: 0.3rem; font-size: 0.8rem; }
+    .kind-Disconnected { background: #eceef2; }
+    .kind-CriticalReading { background: #fdecea; }
+    .active-kind { font-weight: 700; font-size: 0.68rem; text-transform: uppercase; }
+    .active-name { font-weight: 600; flex: 1; }
+    .active-since { color: #6b7280; font-size: 0.72rem; }
+    .event-item { display: grid; grid-template-columns: 5.6rem 1fr auto; gap: 0.4rem; font-size: 0.76rem; padding: 0.25rem 0; border-bottom: 1px solid #f0f1f3; }
+    .evt-tag { font-weight: 700; font-size: 0.64rem; text-transform: uppercase; padding: 0.1rem 0.35rem; border-radius: 4px; text-align: center; align-self: start; }
+    .evt-Raised .evt-tag { background: #d1352b; color: #fff; }
+    .evt-Recovered .evt-tag { background: #2fa84f; color: #fff; }
+    .evt-DuplicateSuppressed .evt-tag { background: #eceef2; color: #4b5563; }
+    .evt-time { color: #9aa1ab; font-size: 0.7rem; }
+    .muted { color: #9aa1ab; font-size: 0.8rem; }
+</style>
+
+@code {
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private static string Tag(AlertEventType type) => type switch
+    {
+        AlertEventType.Raised => "Raised",
+        AlertEventType.Recovered => "Recovered",
+        _ => "Duplicate"
+    };
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
