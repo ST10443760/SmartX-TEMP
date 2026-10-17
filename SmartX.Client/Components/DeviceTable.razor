@@ -1,0 +1,114 @@
+@* Filtered device list. Devices with an active alert float to the top; clicking a row
+   selects it for the timeline chart and the per-device demo controls. *@
+@implements IDisposable
+@using SmartX.Client.Services
+@using SmartX.Shared.Enums
+@inject LiveStateContainer State
+
+@{
+    var devices = DeviceFilter.Apply(State).ToList();
+}
+
+<div class="device-table-wrap">
+    @if (State.Devices.Count == 0)
+    {
+        <p class="muted">Waiting for the device list from the gateway...</p>
+    }
+    else if (devices.Count == 0)
+    {
+        <p class="muted">No devices match the current search and filters.</p>
+    }
+    else
+    {
+        <table class="device-table">
+            <thead>
+                <tr>
+                    <th>Device</th>
+                    <th>Category</th>
+                    <th>Latest</th>
+                    <th>Status</th>
+                    <th>Last seen</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var device in devices)
+                {
+                    var mac = device.MacAddress;
+                    var hasAlert = State.HasAlert(mac);
+                    <tr class="device-row @(hasAlert ? "row-alert" : "") @(State.SelectedMac == mac ? "row-selected" : "")"
+                        @onclick="() => Select(mac)">
+                        <td>
+                            <div class="device-name">@device.DisplayName</div>
+                            <div class="device-mac">@mac</div>
+                        </td>
+                        <td><span class="category-badge category-@device.Category">@device.Category</span></td>
+                        <td class="num">@FormatValue(device)</td>
+                        <td>@StatusBadge(device, hasAlert)</td>
+                        <td class="small">@(device.LastSeenUtc?.ToLocalTime().ToString("HH:mm:ss") ?? "never")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+<style>
+    .device-table-wrap { overflow-x: auto; }
+    .device-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    .device-table th { text-align: left; padding: 0.45rem 0.5rem; border-bottom: 2px solid #e2e5ea; color: #5a6270; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    .device-row { cursor: pointer; }
+    .device-row td { padding: 0.45rem 0.5rem; border-bottom: 1px solid #eef0f2; vertical-align: middle; }
+    .device-row:hover { background: #f7f8fa; }
+    .row-alert { background: #fff7f6; }
+    .row-selected, .row-selected:hover { background: #eef0ff; }
+    .device-name { font-weight: 600; color: #1f2430; }
+    .device-mac { font-family: ui-monospace, monospace; font-size: 0.72rem; color: #9aa1ab; }
+    .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .small { font-size: 0.76rem; color: #5a6270; }
+    .muted { color: #9aa1ab; font-size: 0.85rem; }
+    .category-badge { padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; white-space: nowrap; }
+    .category-Environmental { background: #e6f4ea; color: #1e7b34; }
+    .category-PowerConsumption { background: #fff2e0; color: #a35c00; }
+    .category-Actuator { background: #eef0ff; color: #4338ca; }
+    .status { padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
+    .status-ok { background: #e6f4ea; color: #1e7b34; }
+    .status-warn { background: #fff2e0; color: #a35c00; }
+    .status-crit { background: #fdecea; color: #a33025; }
+    .status-off { background: #eceef2; color: #4b5563; }
+    .status-idle { background: #f5f6f8; color: #9aa1ab; }
+</style>
+
+@code {
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private void Select(string mac)
+    {
+        State.SelectedMac = mac;
+        State.NotifyChanged();
+    }
+
+    private static string FormatValue(SmartX.Shared.Dtos.DeviceStatus device) => device.LastValue switch
+    {
+        null => "-",
+        { } v when device.Category == SensorCategory.Actuator => v >= 0.5 ? "open / on" : "closed / off",
+        { } v => $"{v:0.#} {device.Unit}"
+    };
+
+    private RenderFragment StatusBadge(SmartX.Shared.Dtos.DeviceStatus device, bool hasAlert) => builder =>
+    {
+        var (css, text) = State.IsDisconnected(device.MacAddress) ? ("status-off", "Disconnected")
+            : hasAlert ? ("status-crit", "Critical")
+            : device.LastSeenUtc is null ? ("status-idle", "No data yet")
+            : device.Severity == AlertSeverity.Warning ? ("status-warn", "Warning")
+            : ("status-ok", "Normal");
+
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", $"status {css}");
+        builder.AddContent(2, text);
+        builder.CloseElement();
+    };
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
