@@ -14,6 +14,12 @@
     </div>
 
     <div class="field">
+        <label for="displayName">Display Name (optional)</label>
+        <InputText id="displayName" @bind-Value="_model.DisplayName" placeholder="e.g. Moisture Sensor E" />
+        <ValidationMessage For="() => _model.DisplayName" />
+    </div>
+
+    <div class="field">
         <label for="category">Sensor Category</label>
         <InputSelect id="category" @bind-Value="_model.Category">
             @foreach (var category in Enum.GetValues<SensorCategory>())
@@ -22,6 +28,18 @@
             }
         </InputSelect>
     </div>
+
+    @if (_model.Category == SensorCategory.Actuator)
+    {
+        <div class="field">
+            <label for="actuatorKind">Actuator Drives</label>
+            <InputSelect id="actuatorKind" @bind-Value="_model.ActuatorKind">
+                <option value="@ActuatorKind.Pump">Pump</option>
+                <option value="@ActuatorKind.Valve">Valve</option>
+                <option value="@ActuatorKind.Relay">Relay</option>
+            </InputSelect>
+        </div>
+    }
 
     <div class="field">
         <label>Deployment Location</label>
@@ -168,7 +186,9 @@
             {
                 MacAddress = _model.MacAddress.Trim().ToUpperInvariant(),
                 DeploymentPathSegments = _chain.Select(n => n.Name).ToList(),
-                Category = _model.Category
+                Category = _model.Category,
+                DisplayName = string.IsNullOrWhiteSpace(_model.DisplayName) ? null : _model.DisplayName.Trim(),
+                ActuatorKind = _model.Category == SensorCategory.Actuator ? _model.ActuatorKind : null
             };
 
             var result = await Api.RegisterSensorAsync(request);
@@ -177,6 +197,7 @@
             {
                 _successMessage = $"Sensor {request.MacAddress} registered successfully.";
                 _model.MacAddress = string.Empty;
+                _model.DisplayName = string.Empty;
                 _chain = Root is null ? [] : [Root];
                 await OnRegistered.InvokeAsync();
             }
@@ -203,5 +224,10 @@
 
         [Required]
         public SensorCategory Category { get; set; } = SensorCategory.Environmental;
+
+        [StringLength(40, ErrorMessage = "Keep the display name under 40 characters.")]
+        public string DisplayName { get; set; } = string.Empty;
+
+        public ActuatorKind ActuatorKind { get; set; } = ActuatorKind.Pump;
     }
 }
