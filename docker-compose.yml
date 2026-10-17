@@ -7,6 +7,7 @@ services:
       - "8080:8080"
     environment:
       - ASPNETCORE_URLS=http://+:8080
+      - Gateway__DisconnectTimeoutSeconds=10
 
   smartx-client:
     build:
@@ -14,5 +15,26 @@ services:
       dockerfile: SmartX.Client/Dockerfile
     ports:
       - "8081:80"
+    depends_on:
+      - smartx-api
+
+  # Optional fake device fleet. Not started by a plain `docker compose up`;
+  # enable it with `docker compose --profile simulator up --build`.
+  # Inside the compose network the API is reachable as smartx-api:8080.
+  smartx-simulator:
+    profiles: ["simulator"]
+    build:
+      context: .
+      dockerfile: SmartX.Simulator/Dockerfile
+    environment:
+      - SIM_API=http://smartx-api:8080/
+      - SIM_DEVICES=6
+      - SIM_INTERVAL=2
+      # No keyboard inside a container, so spikes/disconnects come from settings:
+      - SIM_SPIKE_EVERY=45
+      - SIM_DISCONNECT=Moisture Sensor D
+    # `docker attach smartx-smartx-simulator-1` then gives the c/d/r/q keys.
+    stdin_open: true
+    tty: true
     depends_on:
       - smartx-api
