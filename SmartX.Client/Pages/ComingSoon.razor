@@ -1,13 +1,12 @@
-@page "/command-stream"
 @page "/network-topology"
 
 <PageTitle>Coming Soon - Smart-X Gateway</PageTitle>
 
 <div class="coming-soon">
     <div class="lock-icon">🔒</div>
-    <h1>@Title</h1>
-    <p>@Description</p>
-    <a class="btn-back" href="telemetry">← Back to Sensor Telemetry</a>
+    <h1>Network Topology &amp; Mesh Routing</h1>
+    <p>This module - mesh graphing, traversal, and Minimum Spanning Tree routing - ships in the final Smart-X PoE submission.</p>
+    <a class="btn-back" href="command-stream">← Back to the Command Stream</a>
 </div>
 
 <style>
@@ -37,18 +36,3 @@
         font-size: 0.9rem;
     }
 </style>
-
-@code {
-    private string Title =>
-        NavigationManager.Uri.Contains("command-stream")
-            ? "Real-Time Command Stream & History"
-            : "Network Topology & Mesh Routing";
-
-    private string Description =>
-        NavigationManager.Uri.Contains("command-stream")
-            ? "This module - priority alert queues, manual override history, and the predictive action engine - ships in Part 2 of the Smart-X POE."
-            : "This module - mesh graphing, traversal, and Minimum Spanning Tree routing - ships in the final Smart-X PoE submission.";
-
-    [Inject]
-    private Microsoft.AspNetCore.Components.NavigationManager NavigationManager { get; set; } = default!;
-}
