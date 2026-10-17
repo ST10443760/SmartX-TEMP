@@ -29,11 +29,29 @@ public class DisconnectDetectorTests
         detector.RecordSeen("AA:01", T0);
         detector.Scan(T0.AddSeconds(11));
 
-        var second = detector.Scan(T0.AddSeconds(20));
+        // One more timeout period of silence is when a naive detector would
+        // have alerted again - the set suppresses it and counts a duplicate.
+        var second = detector.Scan(T0.AddSeconds(21));
 
         Assert.Empty(second.NewlyDisconnected);
         Assert.Equal(1, second.DuplicatesSuppressed);
         Assert.Equal(1, alerts.Count);
+    }
+
+    [Fact]
+    public void Scan_RapidRescans_DoNotInflateTheDuplicateCount()
+    {
+        var detector = new DisconnectDetector(new ActiveAlertSet(), Timeout);
+        detector.RecordSeen("AA:01", T0);
+        detector.Scan(T0.AddSeconds(11));
+
+        var total = 0;
+        for (var s = 12; s < 21; s++)
+        {
+            total += detector.Scan(T0.AddSeconds(s)).DuplicatesSuppressed;
+        }
+
+        Assert.Equal(0, total);
     }
 
     [Fact]

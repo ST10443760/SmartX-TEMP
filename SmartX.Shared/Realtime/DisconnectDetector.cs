@@ -21,6 +21,11 @@ public sealed record DisconnectScanResult(IReadOnlyList<string> NewlyDisconnecte
 public sealed class DisconnectDetector(ActiveAlertSet alerts, TimeSpan timeout)
 {
     private readonly Dictionary<string, DateTime> _lastSeen = new(StringComparer.OrdinalIgnoreCase);
+
+    // When each silent node was last alerted or counted as a duplicate. A
+    // detector without the set would re-alert once per timeout period, so
+    // that is how often a suppressed duplicate is counted.
+    private readonly Dictionary<string, DateTime> _lastFlagged = new(StringComparer.OrdinalIgnoreCase);
     private readonly Lock _gate = new();
 
     public TimeSpan Timeout { get; } = timeout > TimeSpan.Zero ? timeout : throw new ArgumentOutOfRangeException(nameof(timeout));
@@ -31,6 +36,7 @@ public sealed class DisconnectDetector(ActiveAlertSet alerts, TimeSpan timeout)
         lock (_gate)
         {
             _lastSeen[mac] = nowUtc;
+            _lastFlagged.Remove(mac);
         }
 
         return alerts.TryRecover(mac, AlertKind.Disconnected);
@@ -57,10 +63,12 @@ public sealed class DisconnectDetector(ActiveAlertSet alerts, TimeSpan timeout)
             if (alerts.TryRaise(mac, AlertKind.Disconnected, nowUtc))
             {
                 newlyDisconnected.Add(mac);
+                MarkFlagged(mac, nowUtc);
             }
-            else
+            else if (DuePeriod(mac, nowUtc))
             {
                 duplicates++;
+                MarkFlagged(mac, nowUtc);
             }
         }
 
@@ -79,7 +87,25 @@ public sealed class DisconnectDetector(ActiveAlertSet alerts, TimeSpan timeout)
             _lastSeen[mac] = nowUtc - Timeout;
         }
 
-        return alerts.TryRaise(mac, AlertKind.Disconnected, nowUtc);
+        var isNew = alerts.TryRaise(mac, AlertKind.Disconnected, nowUtc);
+        MarkFlagged(mac, nowUtc);
+        return isNew;
+    }
+
+    private bool DuePeriod(string mac, DateTime nowUtc)
+    {
+        lock (_gate)
+        {
+            return !_lastFlagged.TryGetValue(mac, out var flagged) || nowUtc - flagged >= Timeout;
+        }
+    }
+
+    private void MarkFlagged(string mac, DateTime nowUtc)
+    {
+        lock (_gate)
+        {
+            _lastFlagged[mac] = nowUtc;
+        }
     }
 
     public DateTime? LastSeen(string mac)
