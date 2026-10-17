@@ -1,0 +1,90 @@
+@* Live counters for the two ingestion queues plus the demo trigger for the priority bypass. *@
+@implements IDisposable
+@using SmartX.Client.Services
+@inject LiveStateContainer State
+@inject SmartXApiClient Api
+
+<div class="stats-bar">
+    <div class="stat">
+        <span class="stat-value">@State.Stats.FifoDepth</span>
+        <span class="stat-label">FIFO queue</span>
+    </div>
+    <div class="stat stat-priority">
+        <span class="stat-value">@State.Stats.PriorityDepth</span>
+        <span class="stat-label">Priority queue</span>
+    </div>
+    <div class="stat">
+        <span class="stat-value">@State.Stats.ProcessedTotal</span>
+        <span class="stat-label">Processed</span>
+    </div>
+    <div class="stat stat-priority">
+        <span class="stat-value">@State.Stats.PriorityProcessed</span>
+        <span class="stat-label">Jumped the queue</span>
+    </div>
+    <div class="stat">
+        <span class="stat-value">@State.ActiveAlerts.Count</span>
+        <span class="stat-label">Active alerts (set)</span>
+    </div>
+    <div class="stat">
+        <span class="stat-value">@State.Stats.DuplicateAlertsSuppressed</span>
+        <span class="stat-label">Duplicates suppressed</span>
+    </div>
+    <div class="stat">
+        <span class="stat-value">@State.Stats.RejectedUnknown</span>
+        <span class="stat-label">Unknown MACs rejected</span>
+    </div>
+
+    <div class="stats-actions">
+        <button class="btn-danger" @onclick="SimulateCriticalAsync" disabled="@_busy"
+                title="Queues a backlog of routine packets, then one critical packet - the critical one is processed first.">
+            ⚠ Simulate critical alert
+        </button>
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <span class="stats-message">@_message</span>
+        }
+    </div>
+</div>
+
+<style>
+    .stats-bar { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0.6rem; margin-bottom: 1.25rem; }
+    .stat { background: #fff; border: 1px solid #e2e5ea; border-radius: 10px; padding: 0.5rem 0.85rem; min-width: 96px; display: flex; flex-direction: column; }
+    .stat-priority { border-color: #f3c3bf; background: #fff7f6; }
+    .stat-value { font-size: 1.25rem; font-weight: 700; color: #1f2430; font-variant-numeric: tabular-nums; }
+    .stat-label { font-size: 0.7rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.03em; }
+    .stats-actions { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-left: auto; }
+    .stats-message { font-size: 0.78rem; color: #5a6270; max-width: 320px; }
+    .btn-danger { background: #d1352b; color: #fff; border: none; border-radius: 8px; padding: 0.55rem 1rem; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+    .btn-danger:disabled { opacity: 0.6; cursor: wait; }
+</style>
+
+@code {
+    private bool _busy;
+    private string? _message;
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task SimulateCriticalAsync()
+    {
+        _busy = true;
+        try
+        {
+            // Spike the selected device if it can be spiked, otherwise let the API pick one.
+            var selected = State.SelectedMac is { } mac ? State.FindDevice(mac) : null;
+            var target = selected is { Category: not SmartX.Shared.Enums.SensorCategory.Actuator } ? selected.MacAddress : null;
+            _message = await Api.SimulateCriticalAlertAsync(target);
+        }
+        catch (Exception ex)
+        {
+            _message = $"Could not reach the API: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
