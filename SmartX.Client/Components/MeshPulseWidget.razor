@@ -6,6 +6,7 @@
 @using SmartX.Shared.Dtos
 @using SmartX.Shared.Enums
 @inject SmartX.Client.Services.SmartXApiClient Api
+@inject SmartX.Client.Services.LiveStateContainer State
 
 <div class="mesh-pulse">
     <div class="mesh-pulse-header">
@@ -111,6 +112,11 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Render the last snapshot straight away when navigating back, instead
+        // of flashing "waiting for the first pulse" until the next poll lands.
+        _pulses = [.. State.LastPulses];
+        _lastUpdated = State.LastPulseUtc;
+
         await RefreshAsync();
 
         _cts = new CancellationTokenSource();
@@ -141,6 +147,8 @@
         {
             _pulses = await Api.GetLivePulsesAsync();
             _lastUpdated = DateTimeOffset.UtcNow;
+            State.LastPulses = _pulses;
+            State.LastPulseUtc = _lastUpdated;
         }
         catch
         {
