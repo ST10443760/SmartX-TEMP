@@ -1,7 +1,9 @@
 using SmartX.Api.Data;
 using SmartX.Api.Endpoints;
+using SmartX.Api.Hubs;
 using SmartX.Api.Services;
 using SmartX.Shared.Collections;
+using SmartX.Shared.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,12 +18,16 @@ builder.Services.AddCors(options =>
                 "http://localhost:5219", "https://localhost:7036", // SmartX.Client (Kestrel dev server)
                 "http://localhost:8081") // SmartX.Client (docker-compose / nginx)
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            // SignalR negotiation sends credentials from the browser, which
+            // CORS only allows alongside an explicit origin list (above).
+            .AllowCredentials();
     });
 });
 
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
+builder.Services.AddSignalR();
 
 // Gateway state - in-memory for Part 1, per the assessment's simulation note.
 builder.Services.AddSingleton(DeploymentTreeSeed.BuildDefaultSite());
@@ -71,5 +77,7 @@ app.MapGet("/", () => Results.Ok(new { service = "SmartX.Api", status = "running
 app.MapDeploymentEndpoints();
 app.MapSensorEndpoints();
 app.MapTelemetryEndpoints();
+
+app.MapHub<TelemetryHub>(HubEvents.HubRoute);
 
 app.Run();
