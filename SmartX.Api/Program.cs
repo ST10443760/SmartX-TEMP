@@ -3,6 +3,7 @@ using SmartX.Api.Endpoints;
 using SmartX.Api.Hubs;
 using SmartX.Api.Services;
 using SmartX.Shared.Collections;
+using SmartX.Shared.Commands;
 using SmartX.Shared.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -63,7 +64,24 @@ builder.Services.AddSingleton<TelemetryHistoryStore>(sp =>
 builder.Services.AddSingleton<TelemetryPulseGenerator>();
 builder.Services.AddHostedService(sp => sp.GetRequiredService<TelemetryPulseGenerator>());
 
+// ---- Part 2: real-time processing engine ----
+// Every structure below is a singleton shared by the endpoints and the
+// background worker; each one guards itself with a private lock (see README).
+builder.Services.AddSingleton<IngestionPipeline>();
+builder.Services.AddSingleton<GatewayCounters>();
+builder.Services.AddSingleton<RecentReadingFeed>();
+builder.Services.AddSingleton(new OverrideCommandProcessor(new ActuatorStateBoard(), new OverrideCommandStack(capacity: 100)));
+builder.Services.AddSingleton<LiveDeviceRegistrar>();
+builder.Services.AddHostedService<TelemetryProcessingWorker>();
+
 var app = builder.Build();
+
+// Plug every seeded sensor into the live structures before traffic arrives.
+var registrar = app.Services.GetRequiredService<LiveDeviceRegistrar>();
+foreach (var sensor in app.Services.GetRequiredService<SensorLedger>())
+{
+    registrar.Track(sensor);
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -78,6 +96,8 @@ app.MapDeploymentEndpoints();
 app.MapSensorEndpoints();
 app.MapTelemetryEndpoints();
 app.MapStreamEndpoints();
+app.MapCommandEndpoints();
+app.MapSimulationEndpoints();
 
 app.MapHub<TelemetryHub>(HubEvents.HubRoute);
 
