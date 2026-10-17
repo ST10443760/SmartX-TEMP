@@ -1,5 +1,4 @@
 using SmartX.Api.Services;
-using SmartX.Shared.Collections;
 using SmartX.Shared.Dtos;
 using SmartX.Shared.Realtime;
 
@@ -20,9 +19,10 @@ public static class TelemetryEndpoints
             .WithName("GetTelemetryHistory")
             .WithSummary("Flattened historical readings for one sensor, originally captured as jagged raw batches.");
 
-        group.MapPost("/ingest", (TelemetryIngestRequest request, SensorLedger ledger, IngestionPipeline pipeline, GatewayCounters counters) =>
+        group.MapPost("/ingest", (TelemetryIngestRequest request, DeviceDirectory directory, IngestionPipeline pipeline, GatewayCounters counters) =>
             {
-                if (string.IsNullOrWhiteSpace(request.MacAddress) || ledger.FindByMacAddress(request.MacAddress) is null)
+                // O(1) dictionary lookup - an unknown MAC is rejected here, before it is queued.
+                if (string.IsNullOrWhiteSpace(request.MacAddress) || !directory.Contains(request.MacAddress))
                 {
                     counters.RejectedUnknown();
                     return Results.NotFound($"Unknown device '{request.MacAddress}'. Register it via POST /api/sensors first.");
