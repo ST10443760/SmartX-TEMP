@@ -1,0 +1,167 @@
+@* "Suggested Actions" - the Automated Action Engine's output, pushed live over SignalR.
+   Top: one-click chips for the action operators usually take next (learnt from history).
+   Middle: actions suggested because a device condition is active right now.
+   Bottom: devices flagged from the live data before anyone searches for them. *@
+@implements IDisposable
+@using SmartX.Client.Services
+@using SmartX.Shared.Dtos
+@using SmartX.Shared.Enums
+@inject LiveStateContainer State
+@inject SmartXApiClient Api
+
+@{
+    var insights = State.Insights;
+}
+
+<div class="insights">
+    <div class="insights-section">
+        <div class="insights-label">
+            Likely next
+            @if (insights.BasedOn is not null)
+            {
+                <span class="muted">after your @insights.BasedOn</span>
+            }
+        </div>
+        @if (insights.NextActions.Count == 0)
+        {
+            <p class="muted">No strong pattern yet for the last action - keep working and the engine will learn.</p>
+        }
+        else
+        {
+            @foreach (var suggestion in insights.NextActions)
+            {
+                @Suggestion(suggestion)
+            }
+        }
+    </div>
+
+    @if (insights.ConditionActions.Count > 0)
+    {
+        <div class="insights-section">
+            <div class="insights-label">Because of current conditions</div>
+            @foreach (var suggestion in insights.ConditionActions)
+            {
+                @Suggestion(suggestion)
+            }
+        </div>
+    }
+
+    <div class="insights-section">
+        <div class="insights-label">Automated insights <span class="muted">(devices needing attention)</span></div>
+        @if (insights.ProblemDevices.Count == 0)
+        {
+            <p class="muted">All reporting devices look healthy.</p>
+        }
+        else
+        {
+            <ul class="problem-list">
+                @foreach (var problem in insights.ProblemDevices.Take(6))
+                {
+                    var mac = problem.MacAddress;
+                    <li class="problem sev-@problem.Severity" @onclick="() => Select(mac)" title="Show this device's timeline">
+                        <span class="problem-kind">@KindText(problem.Kind)</span>
+                        <span class="problem-reason">@problem.Reason</span>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+
+    <div class="insights-foot muted">
+        Learnt from @insights.HistorySize remembered actions · @insights.PatternsLearned patterns
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <span> · @_message</span>
+        }
+    </div>
+</div>
+
+<style>
+    .insights-section { margin-bottom: 0.85rem; }
+    .insights-label { font-size: 0.74rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: #374151; margin-bottom: 0.4rem; }
+    .insights-label .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
+    .suggestion { display: flex; gap: 0.6rem; align-items: flex-start; margin-bottom: 0.45rem; }
+    .suggest-chip { flex-shrink: 0; border: 1px solid #6a5acd; background: #eef0ff; color: #3730a3; border-radius: 999px; padding: 0.3rem 0.75rem; font-size: 0.78rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .suggest-chip.kind-Command { background: #6a5acd; color: #fff; }
+    .suggest-chip:disabled { opacity: 0.6; }
+    .suggest-reason { font-size: 0.76rem; color: #4b5563; line-height: 1.35; }
+    .suggest-confidence { display: block; color: #9aa1ab; font-size: 0.7rem; }
+    .problem-list { list-style: none; margin: 0; padding: 0; }
+    .problem { display: flex; gap: 0.5rem; align-items: baseline; padding: 0.35rem 0.5rem; border-radius: 6px; margin-bottom: 0.3rem; font-size: 0.78rem; cursor: pointer; }
+    .problem.sev-Critical { background: #fdecea; }
+    .problem.sev-Warning { background: #fff7e8; }
+    .problem-kind { flex-shrink: 0; font-weight: 700; font-size: 0.64rem; text-transform: uppercase; min-width: 5.2rem; }
+    .insights-foot { font-size: 0.7rem; }
+    .muted { color: #9aa1ab; font-size: 0.78rem; }
+</style>
+
+@code {
+    private bool _busy;
+    private string? _message;
+
+    /// <summary>Raised when a search chip is clicked, so the page records it like a typed search.</summary>
+    [Parameter]
+    public EventCallback<string> OnSearchChosen { get; set; }
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private RenderFragment Suggestion(SuggestedAction suggestion) =>
+        @<div class="suggestion">
+            <button class="suggest-chip kind-@suggestion.Kind" disabled="@_busy" @onclick="() => ApplyAsync(suggestion)">
+                @(suggestion.Kind == ActivityKind.Search ? $"🔍 {suggestion.Label}" : $"▶ {suggestion.Label}")
+            </button>
+            <span class="suggest-reason">
+                @suggestion.Reason
+                <span class="suggest-confidence">confidence @suggestion.Confidence.ToString("P0")</span>
+            </span>
+        </div>;
+
+    private async Task ApplyAsync(SuggestedAction suggestion)
+    {
+        _busy = true;
+        _message = null;
+        try
+        {
+            if (suggestion.Kind == ActivityKind.Search)
+            {
+                State.SearchText = suggestion.Label;
+                State.CategoryFilter = null;
+                State.AlertsOnly = false;
+                State.NotifyChanged();
+                await OnSearchChosen.InvokeAsync(suggestion.Label);
+            }
+            else if (suggestion.CommandType is { } type)
+            {
+                var outcome = await Api.ExecuteCommandAsync(new OverrideCommandRequest { CommandType = type, TargetMac = suggestion.TargetMac });
+                State.ApplyCommandOutcome(outcome, fromThisClient: true);
+                _message = outcome.Success ? null : outcome.Message;
+            }
+        }
+        catch (Exception ex)
+        {
+            _message = $"Could not reach the API: {ex.Message}";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Select(string mac)
+    {
+        State.SelectedMac = mac;
+        State.NotifyChanged();
+    }
+
+    private static string KindText(InsightKind kind) => kind switch
+    {
+        InsightKind.Fault => "Fault",
+        InsightKind.Disconnected => "Offline",
+        InsightKind.OutOfRange => "Out of range",
+        _ => "Trend"
+    };
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
