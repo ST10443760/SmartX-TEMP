@@ -1,4 +1,5 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@inject SmartX.Client.Services.TelemetryHubConnection Hub
 <div class="page">
     <div class="sidebar">
         <NavMenu />
@@ -7,6 +8,7 @@
     <main>
         <div class="top-row px-4">
             <span class="top-row-title">Smart-X IoT Mesh Ecosystem</span>
+            <ConnectionBadge />
         </div>
 
         <article class="content px-4">
@@ -14,3 +16,12 @@
         </article>
     </main>
 </div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        // Open the real-time link once for the whole app. The connection is a
+        // singleton, so later layout renders (or page changes) reuse it.
+        await Hub.EnsureStartedAsync();
+    }
+}

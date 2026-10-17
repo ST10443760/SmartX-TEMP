@@ -26,6 +26,7 @@ main {
     font-weight: 600;
     color: #5a6270;
     letter-spacing: 0.02em;
+    margin-right: 1rem;
 }
 
     .top-row ::deep a, .top-row ::deep .btn-link {
