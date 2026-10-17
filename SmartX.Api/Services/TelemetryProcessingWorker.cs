@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.AspNetCore.SignalR;
 using SmartX.Api.Hubs;
 using SmartX.Shared.Dtos;
@@ -117,7 +118,7 @@ public sealed class TelemetryProcessingWorker(
         {
             if (activeAlerts.TryRaise(device.MacAddress, AlertKind.CriticalReading, now))
             {
-                await alerts.RaisedAsync(device.MacAddress, AlertKind.CriticalReading, $"reported a critical reading of {reading.Value:0.#}{reading.Unit}", ct);
+                await alerts.RaisedAsync(device.MacAddress, AlertKind.CriticalReading, string.Create(CultureInfo.InvariantCulture, $"reported a critical reading of {reading.Value:0.#}{reading.Unit}"), ct);
             }
             else
             {
