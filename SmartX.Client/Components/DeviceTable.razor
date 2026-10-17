@@ -41,7 +41,7 @@
                             <div class="device-name">@device.DisplayName</div>
                             <div class="device-mac">@mac</div>
                         </td>
-                        <td><span class="category-badge category-@device.Category">@device.Category</span></td>
+                        <td><span class="category-badge category-@device.Category">@(device.Category == SensorCategory.PowerConsumption ? "Power" : device.Category.ToString())</span></td>
                         <td class="num">@FormatValue(device)</td>
                         <td>@StatusBadge(device, hasAlert)</td>
                         <td class="small">@(device.LastSeenUtc?.ToLocalTime().ToString("HH:mm:ss") ?? "never")</td>
