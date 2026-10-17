@@ -13,6 +13,21 @@ namespace SmartX.Api.Services;
 /// </summary>
 public sealed class AlertBroadcaster(DeviceDirectory directory, GatewayCounters counters, IHubContext<TelemetryHub> hub)
 {
+    private const int RecentCapacity = 40;
+
+    // Bounded log so a dashboard that opens later still sees what happened.
+    private readonly Queue<AlertEvent> _recent = new();
+    private readonly Lock _gate = new();
+
+    /// <summary>Newest first.</summary>
+    public List<AlertEvent> Recent()
+    {
+        lock (_gate)
+        {
+            return _recent.Reverse().ToList();
+        }
+    }
+
     public Task RaisedAsync(string mac, AlertKind kind, string detail, CancellationToken ct = default)
         => SendAsync(mac, kind, AlertEventType.Raised, detail, ct);
 
@@ -37,6 +52,15 @@ public sealed class AlertBroadcaster(DeviceDirectory directory, GatewayCounters 
             Message = $"{name} {detail}",
             TimestampUtc = DateTime.UtcNow
         };
+
+        lock (_gate)
+        {
+            _recent.Enqueue(alert);
+            while (_recent.Count > RecentCapacity)
+            {
+                _recent.Dequeue();
+            }
+        }
 
         return hub.Clients.All.SendAsync(HubEvents.Alert, alert, ct);
     }

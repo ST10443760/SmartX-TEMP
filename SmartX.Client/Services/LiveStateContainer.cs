@@ -209,6 +209,13 @@ public sealed class LiveStateContainer
         }
 
         ActiveAlerts = snapshot.ActiveAlerts;
+
+        if (snapshot.RecentAlertEvents.Count > 0)
+        {
+            _alertEvents.Clear();
+            _alertEvents.AddRange(snapshot.RecentAlertEvents.Take(MaxAlertEvents));
+        }
+
         Stats = snapshot.Stats;
         NotifyChanged();
     }

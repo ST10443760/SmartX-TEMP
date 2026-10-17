@@ -12,7 +12,7 @@ public static class StreamEndpoints
     {
         var group = app.MapGroup("/api/stream").WithTags("Command Stream");
 
-        group.MapGet("/snapshot", (DeviceDirectory directory, ActiveAlertSet alerts, ReadingHistoryStore<LiveReading> history, RecentReadingFeed recent, GatewayCounters counters) =>
+        group.MapGet("/snapshot", (DeviceDirectory directory, ActiveAlertSet alerts, ReadingHistoryStore<LiveReading> history, RecentReadingFeed recent, GatewayCounters counters, AlertBroadcaster broadcaster) =>
             {
                 var disconnected = alerts.DisconnectedNodes();
 
@@ -37,6 +37,7 @@ public static class StreamEndpoints
                         .ToList(),
                     RecentReadings = recent.Snapshot(),
                     ActiveAlerts = ToActiveAlerts(alerts, directory),
+                    RecentAlertEvents = broadcaster.Recent(),
                     Stats = counters.Snapshot()
                 });
             })

@@ -14,5 +14,8 @@ public sealed class StreamSnapshot
 
     public List<ActiveAlert> ActiveAlerts { get; init; } = [];
 
+    /// <summary>Recent alert transitions, newest first.</summary>
+    public List<AlertEvent> RecentAlertEvents { get; init; } = [];
+
     public QueueStats Stats { get; init; } = new();
 }
