@@ -1,0 +1,95 @@
+@* Search (MAC or name), operational category and alert-state filters. Values live in the
+   singleton state container, so they survive navigating away and back. *@
+@implements IDisposable
+@using SmartX.Client.Services
+@using SmartX.Shared.Enums
+@inject LiveStateContainer State
+
+<div class="filter-bar">
+    <input class="filter-search" type="search" placeholder="Search by MAC or name, e.g. Moisture Sensor B"
+           value="@State.SearchText"
+           @oninput="OnSearchInput"
+           @onkeydown="OnSearchKeyDown"
+           @onblur="CommitSearchAsync" />
+
+    <div class="filter-chips">
+        <button class="chip @(State.CategoryFilter is null ? "chip-on" : "")" @onclick="() => SetCategory(null)">All</button>
+        @foreach (var category in Enum.GetValues<SensorCategory>())
+        {
+            var current = category;
+            <button class="chip @(State.CategoryFilter == current ? "chip-on" : "")" @onclick="() => SetCategory(current)">@Describe(current)</button>
+        }
+    </div>
+
+    <label class="filter-toggle">
+        <input type="checkbox" checked="@State.AlertsOnly" @onchange="e => SetAlertsOnly((bool)e.Value!)" />
+        Active alerts only
+    </label>
+</div>
+
+<style>
+    .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: 0.9rem; }
+    .filter-search { flex: 1 1 260px; padding: 0.5rem 0.7rem; border: 1px solid #cfd4db; border-radius: 8px; font-size: 0.88rem; }
+    .filter-chips { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+    .chip { border: 1px solid #cfd4db; background: #fff; color: #374151; border-radius: 999px; padding: 0.3rem 0.75rem; font-size: 0.78rem; cursor: pointer; }
+    .chip-on { background: #6a5acd; border-color: #6a5acd; color: #fff; }
+    .filter-toggle { font-size: 0.82rem; color: #374151; display: flex; align-items: center; gap: 0.35rem; cursor: pointer; margin: 0; }
+</style>
+
+@code {
+    /// <summary>Raised when the operator finishes a search (Enter or leaving the box) - feeds the insights engine.</summary>
+    [Parameter]
+    public EventCallback<string> OnSearchCommitted { get; set; }
+
+    private string? _lastCommitted;
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnSearchInput(ChangeEventArgs e)
+    {
+        State.SearchText = e.Value?.ToString() ?? "";
+        State.NotifyChanged();
+    }
+
+    private async Task OnSearchKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await CommitSearchAsync();
+        }
+    }
+
+    private async Task CommitSearchAsync()
+    {
+        var term = State.SearchText.Trim();
+        if (term.Length < 2 || string.Equals(term, _lastCommitted, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _lastCommitted = term;
+        await OnSearchCommitted.InvokeAsync(term);
+    }
+
+    private void SetCategory(SensorCategory? category)
+    {
+        State.CategoryFilter = category;
+        State.NotifyChanged();
+    }
+
+    private void SetAlertsOnly(bool value)
+    {
+        State.AlertsOnly = value;
+        State.NotifyChanged();
+    }
+
+    private static string Describe(SensorCategory category) => category switch
+    {
+        SensorCategory.PowerConsumption => "Power Consumption",
+        _ => category.ToString()
+    };
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
