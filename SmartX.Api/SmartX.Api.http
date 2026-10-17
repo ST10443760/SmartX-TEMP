@@ -37,3 +37,73 @@ GET {{SmartX.Api_HostAddress}}/api/telemetry/pulses
 
 ### Flattened historical readings for a seeded sensor
 GET {{SmartX.Api_HostAddress}}/api/telemetry/history/24:6F:28:A1:00:01?take=10
+
+# ---------------------------------------------------------------------------
+# Part 2 - Real-Time Command Stream
+# ---------------------------------------------------------------------------
+
+### Ingest a float moisture reading (expect 202, FIFO lane)
+POST {{SmartX.Api_HostAddress}}/api/telemetry/ingest
+Content-Type: application/json
+
+{ "macAddress": "24:6F:28:A1:00:02", "moisture": 44.5 }
+
+### Ingest an int wattage spike (expect 202, Priority lane, critical alert raised once)
+POST {{SmartX.Api_HostAddress}}/api/telemetry/ingest
+Content-Type: application/json
+
+{ "macAddress": "B4:E6:2D:C2:11:04", "watts": 4300 }
+
+### Ingest a bool valve state
+POST {{SmartX.Api_HostAddress}}/api/telemetry/ingest
+Content-Type: application/json
+
+{ "macAddress": "7C:9E:BD:33:22:07", "valveOpen": true }
+
+### Unknown MAC (expect 404 - rejected by the O(1) dictionary lookup)
+POST {{SmartX.Api_HostAddress}}/api/telemetry/ingest
+Content-Type: application/json
+
+{ "macAddress": "FF:FF:FF:FF:FF:FF", "moisture": 40 }
+
+### SIMULATE CRITICAL ALERT - queues a routine backlog then one critical packet; the critical one is processed first
+POST {{SmartX.Api_HostAddress}}/api/simulate/critical-alert?mac=24:6F:28:A1:00:02
+
+### Simulate a disconnect (run twice: the second call is ignored as a duplicate)
+POST {{SmartX.Api_HostAddress}}/api/simulate/disconnect/24:6F:28:A1:00:03
+
+### Active alert set (HashSet of unique error states)
+GET {{SmartX.Api_HostAddress}}/api/stream/alerts
+
+### Snapshot: devices, recent readings, alerts, queue stats
+GET {{SmartX.Api_HostAddress}}/api/stream/snapshot
+
+### Timeline for one device (sorted by timestamp)
+GET {{SmartX.Api_HostAddress}}/api/stream/history/24:6F:28:A1:00:02?take=50
+
+### Close all valves
+POST {{SmartX.Api_HostAddress}}/api/commands
+Content-Type: application/json
+
+{ "commandType": 4 }
+
+### Trigger Pump A
+POST {{SmartX.Api_HostAddress}}/api/commands
+Content-Type: application/json
+
+{ "commandType": 0, "targetMac": "7C:9E:BD:33:22:06" }
+
+### Undo the last command (409 when the stack is empty)
+POST {{SmartX.Api_HostAddress}}/api/commands/undo
+
+### Command stack and actuator states
+GET {{SmartX.Api_HostAddress}}/api/commands
+
+### Suggested actions and automated insights
+GET {{SmartX.Api_HostAddress}}/api/insights
+
+### Record a search with the action engine
+POST {{SmartX.Api_HostAddress}}/api/insights/search
+Content-Type: application/json
+
+{ "searchText": "Power Meter A" }
