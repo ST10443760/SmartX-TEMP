@@ -1,3 +1,6 @@
+@implements IDisposable
+@inject SmartX.Client.Services.LiveStateContainer State
+
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
         <a class="navbar-brand" href="">Smart-X Gateway</a>
@@ -21,10 +24,13 @@
             </NavLink>
         </div>
         <div class="nav-item px-3">
-            <NavLink class="nav-link nav-link-disabled" href="command-stream">
+            <NavLink class="nav-link" href="command-stream">
                 <span class="bi bi-lightning-fill-nav-menu" aria-hidden="true"></span>
-                <span class="nav-link-text">Command Stream</span>
-                <span class="badge-locked">Part 2</span>
+                <span class="nav-link-text">Command Stream &amp; History</span>
+                @if (State.ActiveAlerts.Count > 0)
+                {
+                    <span class="badge-alert" title="Active alerts">@State.ActiveAlerts.Count</span>
+                }
             </NavLink>
         </div>
         <div class="nav-item px-3">
@@ -42,8 +48,14 @@
 
     private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
 
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
     private void ToggleNavMenu()
     {
         collapseNavMenu = !collapseNavMenu;
     }
+
+    public void Dispose() => State.Changed -= OnStateChanged;
 }

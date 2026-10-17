@@ -117,3 +117,15 @@
         overflow-y: auto;
     }
 }
+
+.badge-alert {
+    flex-shrink: 0;
+    font-size: 0.68rem;
+    font-weight: 700;
+    min-width: 1.4rem;
+    text-align: center;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    background-color: #d1352b;
+    color: white;
+}
