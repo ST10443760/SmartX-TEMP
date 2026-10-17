@@ -4,6 +4,7 @@ using SmartX.Api.Hubs;
 using SmartX.Api.Services;
 using SmartX.Shared.Collections;
 using SmartX.Shared.Commands;
+using SmartX.Shared.Dtos;
 using SmartX.Shared.Realtime;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -71,8 +72,16 @@ builder.Services.AddSingleton<IngestionPipeline>();
 builder.Services.AddSingleton<GatewayCounters>();
 builder.Services.AddSingleton<RecentReadingFeed>();
 builder.Services.AddSingleton(new OverrideCommandProcessor(new ActuatorStateBoard(), new OverrideCommandStack(capacity: 100)));
+builder.Services.AddSingleton<DeviceDirectory>();
+builder.Services.AddSingleton(new ReadingHistoryStore<LiveReading>(capacityPerDevice: builder.Configuration.GetValue("Gateway:HistoryCapacityPerDevice", 200)));
+builder.Services.AddSingleton<ActiveAlertSet>();
+builder.Services.AddSingleton(sp => new DisconnectDetector(
+    sp.GetRequiredService<ActiveAlertSet>(),
+    TimeSpan.FromSeconds(builder.Configuration.GetValue("Gateway:DisconnectTimeoutSeconds", 10))));
+builder.Services.AddSingleton<AlertBroadcaster>();
 builder.Services.AddSingleton<LiveDeviceRegistrar>();
 builder.Services.AddHostedService<TelemetryProcessingWorker>();
+builder.Services.AddHostedService<DisconnectMonitor>();
 
 var app = builder.Build();
 
