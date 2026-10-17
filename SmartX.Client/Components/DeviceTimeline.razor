@@ -1,0 +1,257 @@
+@* Timeline chart for the selected device, drawn as inline SVG (no chart library). The
+   points come from the API's per-device SortedDictionary, so they are already in
+   timestamp order; new readings for the same device are inserted live by the state
+   container. Hovering shows a crosshair and the nearest reading. *@
+@implements IDisposable
+@using SmartX.Client.Services
+@using SmartX.Shared.Dtos
+@using SmartX.Shared.Enums
+@using SmartX.Shared.Realtime
+@inject LiveStateContainer State
+@inject SmartXApiClient Api
+@inject TelemetryHubConnection Hub
+
+@{
+    var device = State.SelectedMac is { } selectedMac ? State.FindDevice(selectedMac) : null;
+}
+
+<div class="timeline">
+    @if (device is null)
+    {
+        <p class="muted">Select a device in the table to see its timeline.</p>
+    }
+    else
+    {
+        <div class="timeline-head">
+            <div>
+                <strong>@device.DisplayName</strong>
+                <span class="muted mono">@device.MacAddress</span>
+            </div>
+            <div class="timeline-actions">
+                <span class="muted">@State.TimelinePoints.Count readings (sorted by timestamp)</span>
+                <button class="btn-small" @onclick="() => SimulateDisconnectAsync(device.MacAddress)" title="Adds this node to the disconnected set. Press twice to see the duplicate ignored.">Simulate disconnect</button>
+            </div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_message))
+        {
+            <p class="timeline-msg">@_message</p>
+        }
+
+        @if (State.TimelinePoints.Count < 2)
+        {
+            <p class="muted">Not enough readings yet - waiting for telemetry from this device.</p>
+        }
+        else
+        {
+            var points = State.TimelinePoints;
+            var (min, max) = Range(points, device.Category);
+            var first = points[0].TimestampUtc;
+            var span = Math.Max(1, (points[^1].TimestampUtc - first).TotalSeconds);
+            double X(DateTime t) => PadLeft + (t - first).TotalSeconds / span * (Width - PadLeft - PadRight);
+            double Y(double v) => PadTop + (1 - (v - min) / (max - min)) * (Height - PadTop - PadBottom);
+            var path = string.Join(" ", points.Select((p, i) => $"{(i == 0 ? "M" : "L")}{X(p.TimestampUtc):0.#},{Y(p.Value):0.#}"));
+            var hover = _hoverIndex is { } hi && hi < points.Count ? points[hi] : null;
+
+            <svg class="timeline-svg" viewBox="0 0 @Width @Height" role="img"
+                 aria-label="@($"{device.DisplayName} readings over time")"
+                 @onmouseleave="() => _hoverIndex = null">
+
+                @foreach (var tick in Ticks(min, max))
+                {
+                    <g><line x1="@PadLeft" x2="@(Width - PadRight)" y1="@Y(tick).ToString("0.#")" y2="@Y(tick).ToString("0.#")" class="grid" />
+                    <text x="@(PadLeft - 6)" y="@((Y(tick) + 3).ToString("0.#"))" class="axis" text-anchor="end">@tick.ToString("0.#")</text></g>
+                }
+
+                @foreach (var (value, label, css) in Thresholds(device.Category))
+                {
+                    if (value > min && value < max)
+                    {
+                        <g><line x1="@PadLeft" x2="@(Width - PadRight)" y1="@Y(value).ToString("0.#")" y2="@Y(value).ToString("0.#")" class="threshold @css" />
+                        <text x="@(Width - PadRight - 4)" y="@((Y(value) - 4).ToString("0.#"))" class="threshold-label" text-anchor="end">@label</text></g>
+                    }
+                }
+
+                <path d="@path" class="series" />
+
+                @foreach (var point in points.Where(p => p.Severity != AlertSeverity.Normal))
+                {
+                    <circle cx="@X(point.TimestampUtc).ToString("0.#")" cy="@Y(point.Value).ToString("0.#")" r="4.5" class="marker sev-@point.Severity" />
+                }
+
+                @if (hover is not null)
+                {
+                    var hx = X(hover.TimestampUtc);
+                    <line x1="@hx.ToString("0.#")" x2="@hx.ToString("0.#")" y1="@PadTop" y2="@(Height - PadBottom)" class="crosshair" />
+                    <circle cx="@hx.ToString("0.#")" cy="@Y(hover.Value).ToString("0.#")" r="5" class="hover-dot" />
+                }
+
+                <text x="@PadLeft" y="@(Height - 6)" class="axis">@first.ToLocalTime().ToString("HH:mm:ss")</text>
+                <text x="@(Width - PadRight)" y="@(Height - 6)" class="axis" text-anchor="end">@points[^1].TimestampUtc.ToLocalTime().ToString("HH:mm:ss")</text>
+
+                @* Invisible hover bands, one per reading, wider than the line itself. *@
+                @for (var i = 0; i < points.Count; i++)
+                {
+                    var index = i;
+                    var left = i == 0 ? PadLeft : (X(points[i - 1].TimestampUtc) + X(points[i].TimestampUtc)) / 2;
+                    var right = i == points.Count - 1 ? Width - PadRight : (X(points[i].TimestampUtc) + X(points[i + 1].TimestampUtc)) / 2;
+                    <rect x="@left.ToString("0.#")" y="@PadTop" width="@Math.Max(1, right - left).ToString("0.#")" height="@(Height - PadTop - PadBottom)" class="hit" @onmouseenter="() => _hoverIndex = index" />
+                }
+            </svg>
+
+            <div class="timeline-tooltip">
+                @if (hover is not null)
+                {
+                    <span><strong>@Format(hover)</strong> at @hover.TimestampUtc.ToLocalTime().ToString("HH:mm:ss") · @hover.Severity · via @hover.Lane</span>
+                }
+                else
+                {
+                    <span class="muted">Hover the chart to inspect a reading. Dots mark warning/critical readings.</span>
+                }
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .timeline-head { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 0.85rem; }
+    .timeline-actions { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .timeline-msg { font-size: 0.78rem; color: #374151; background: #f5f6f8; padding: 0.35rem 0.6rem; border-radius: 6px; margin: 0 0 0.4rem; }
+    .btn-small { background: #fff; border: 1px solid #cfd4db; border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.74rem; cursor: pointer; }
+    .timeline-svg { width: 100%; height: auto; display: block; background: #fff; }
+    .timeline-svg .hit { fill: transparent; }
+    .timeline-svg .grid { stroke: #eef0f2; stroke-width: 1; }
+    .timeline-svg .axis { fill: #9aa1ab; font-size: 10px; }
+    .timeline-svg .series { fill: none; stroke: #4f46e5; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+    .timeline-svg .threshold { stroke-width: 1; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+    .timeline-svg .threshold.warn { stroke: #d08a1d; }
+    .timeline-svg .threshold.crit { stroke: #c4362b; }
+    .timeline-svg .threshold-label { fill: #5a6270; font-size: 10px; }
+    .timeline-svg .marker { stroke: #fff; stroke-width: 2; }
+    .timeline-svg .sev-Warning { fill: #d08a1d; }
+    .timeline-svg .sev-Critical { fill: #c4362b; }
+    .timeline-svg .crosshair { stroke: #9aa1ab; stroke-width: 1; vector-effect: non-scaling-stroke; }
+    .timeline-svg .hover-dot { fill: #4f46e5; stroke: #fff; stroke-width: 2; }
+    .timeline-tooltip { font-size: 0.78rem; color: #1f2430; min-height: 1.3rem; margin-top: 0.3rem; }
+    .muted { color: #9aa1ab; font-size: 0.8rem; }
+    .mono { font-family: ui-monospace, monospace; margin-left: 0.4rem; }
+</style>
+
+@code {
+    private const double Width = 640, Height = 220, PadLeft = 40, PadRight = 12, PadTop = 12, PadBottom = 22;
+
+    private int? _hoverIndex;
+    private string? _message;
+    private string? _loadedFor;
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.Changed += OnStateChanged;
+        Hub.Resynced += ReloadAsync;
+        await LoadIfSelectionChangedAsync();
+    }
+
+    private void OnStateChanged() => InvokeAsync(async () =>
+    {
+        await LoadIfSelectionChangedAsync();
+        StateHasChanged();
+    });
+
+    private async Task LoadIfSelectionChangedAsync()
+    {
+        var mac = State.SelectedMac;
+        if (mac is null || mac == _loadedFor)
+        {
+            return;
+        }
+
+        _loadedFor = mac;
+        _message = null;
+
+        // Navigating back to the page with the same device keeps the cached
+        // points; only a different selection triggers a fetch.
+        if (State.TimelineMac == mac && State.TimelinePoints.Count > 0)
+        {
+            return;
+        }
+
+        await FetchAsync(mac);
+    }
+
+    private Task ReloadAsync() => State.SelectedMac is { } mac ? InvokeAsync(() => FetchAsync(mac)) : Task.CompletedTask;
+
+    private async Task FetchAsync(string mac)
+    {
+        try
+        {
+            State.SetTimeline(mac, await Api.GetTimelineAsync(mac));
+        }
+        catch
+        {
+            // Keep whatever is cached; the next resync will retry.
+        }
+    }
+
+    private async Task SimulateDisconnectAsync(string mac)
+    {
+        try
+        {
+            _message = await Api.SimulateDisconnectAsync(mac);
+        }
+        catch (Exception ex)
+        {
+            _message = $"Could not reach the API: {ex.Message}";
+        }
+    }
+
+    private static (double Min, double Max) Range(List<LiveReading> points, SensorCategory category)
+    {
+        if (category == SensorCategory.Actuator)
+        {
+            return (-0.1, 1.1);
+        }
+
+        var min = Math.Min(0, points.Min(p => p.Value));
+        var max = points.Max(p => p.Value);
+        if (category == SensorCategory.Environmental)
+        {
+            max = Math.Max(100, max);
+        }
+
+        return (min, max <= min ? min + 1 : max * 1.05);
+    }
+
+    private static IEnumerable<double> Ticks(double min, double max)
+    {
+        var step = (max - min) / 4;
+        for (var i = 0; i <= 4; i++)
+        {
+            yield return Math.Round(min + step * i, 1);
+        }
+    }
+
+    private static IEnumerable<(double Value, string Label, string Css)> Thresholds(SensorCategory category) => category switch
+    {
+        SensorCategory.Environmental =>
+        [
+            (SeverityClassifier.MoistureWarningBelow, $"warning < {SeverityClassifier.MoistureWarningBelow}%", "warn"),
+            (SeverityClassifier.MoistureCriticalBelow, $"critical < {SeverityClassifier.MoistureCriticalBelow}%", "crit")
+        ],
+        SensorCategory.PowerConsumption =>
+        [
+            (SeverityClassifier.WattsWarningAbove, $"warning > {SeverityClassifier.WattsWarningAbove}W", "warn"),
+            (SeverityClassifier.WattsCriticalAbove, $"critical > {SeverityClassifier.WattsCriticalAbove}W", "crit")
+        ],
+        _ => []
+    };
+
+    private static string Format(LiveReading reading) => reading.Kind == ReadingKind.ValveState
+        ? (reading.Value >= 0.5 ? "open" : "closed")
+        : $"{reading.Value:0.#} {reading.Unit}";
+
+    public void Dispose()
+    {
+        State.Changed -= OnStateChanged;
+        Hub.Resynced -= ReloadAsync;
+    }
+}
