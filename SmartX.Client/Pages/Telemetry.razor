@@ -1,6 +1,7 @@
 @page "/telemetry"
 @using SmartX.Shared.Models
 @inject SmartX.Client.Services.SmartXApiClient Api
+@inject SmartX.Client.Services.LiveStateContainer State
 
 <PageTitle>Sensor Data Ingestion &amp; Telemetry - Smart-X Gateway</PageTitle>
 
@@ -13,10 +14,10 @@
 <MeshPulseWidget />
 
 <div class="tab-strip">
-    <button class="tab-btn @(_activeTab == Tab.Register ? "active" : "")" @onclick="() => _activeTab = Tab.Register">
+    <button class="tab-btn @(ActiveTab == Tab.Register ? "active" : "")" @onclick="() => ActiveTab = Tab.Register">
         Register Sensor
     </button>
-    <button class="tab-btn @(_activeTab == Tab.Registry ? "active" : "")" @onclick="() => _activeTab = Tab.Registry">
+    <button class="tab-btn @(ActiveTab == Tab.Registry ? "active" : "")" @onclick="() => ActiveTab = Tab.Registry">
         Sensor Registry (@_sensors.Count)
     </button>
 </div>
@@ -26,7 +27,7 @@
     {
         <p class="muted">Loading...</p>
     }
-    else if (_activeTab == Tab.Register)
+    else if (ActiveTab == Tab.Register)
     {
         <SensorRegistrationForm Root="_deploymentRoot" OnRegistered="RefreshSensorsAsync" />
     }
@@ -47,7 +48,14 @@
 @code {
     private enum Tab { Register, Registry }
 
-    private Tab _activeTab = Tab.Register;
+    // Backed by the singleton state container so coming back to this page
+    // lands on the same tab the operator left it on.
+    private Tab ActiveTab
+    {
+        get => Enum.TryParse<Tab>(State.TelemetryTab, out var tab) ? tab : Tab.Register;
+        set => State.TelemetryTab = value.ToString();
+    }
+
     private DeploymentNode? _deploymentRoot;
     private List<SensorRecord> _sensors = [];
     private bool _isLoading = true;
