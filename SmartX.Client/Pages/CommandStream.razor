@@ -1,27 +1,67 @@
 @page "/command-stream"
 @implements IDisposable
 @using SmartX.Client.Services
+@using SmartX.Shared.Dtos
 @inject LiveStateContainer State
 
 <PageTitle>Command Stream &amp; History - Smart-X Gateway</PageTitle>
 
 <h1>Real-Time Command Stream &amp; History</h1>
 <p class="page-intro">
-    Live telemetry pushed from the gateway over SignalR, manual override commands with undo,
-    and the automated insights engine.
+    Live telemetry pushed from the gateway over SignalR. Critical packets jump the queue,
+    alerts are de-duplicated by a set, and every manual override can be undone.
 </p>
 
-<p class="muted">@State.Devices.Count devices known, @State.Feed.Count readings in the live feed.</p>
+<QueueStatsBar />
+
+<div class="stream-grid">
+    <section class="card card-devices">
+        <h3>Devices</h3>
+        <DeviceFilterBar OnSearchCommitted="OnSearchCommittedAsync" />
+        <DeviceTable />
+    </section>
+
+    <section class="card card-overrides">
+        <h3>Manual overrides</h3>
+        <OverridePanel OnCommandIssued="OnCommandIssuedAsync" />
+    </section>
+
+    <section class="card card-timeline">
+        <h3>Device timeline</h3>
+        <DeviceTimeline />
+    </section>
+
+    <section class="card card-alerts">
+        <h3>Alerts</h3>
+        <AlertPanel />
+    </section>
+
+    <section class="card card-feed">
+        <h3>Live feed <span class="muted">(processing order, newest first)</span></h3>
+        <LiveFeed />
+    </section>
+</div>
 
 <style>
-    .page-intro { color: #5a6270; max-width: 720px; margin-bottom: 1.25rem; }
-    .muted { color: #9aa1ab; font-size: 0.85rem; }
+    .page-intro { color: #5a6270; max-width: 760px; margin-bottom: 1.25rem; }
+    .stream-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .card { background: #fff; border: 1px solid #e2e5ea; border-radius: 12px; padding: 1rem 1.1rem; min-width: 0; }
+    .card h3 { font-size: 0.98rem; margin: 0 0 0.75rem; }
+    .card-timeline { grid-column: 1; }
+    .card-feed { grid-column: 1 / -1; }
+    .muted { color: #9aa1ab; font-size: 0.8rem; font-weight: 400; }
+    @@media (max-width: 1100px) { .stream-grid { grid-template-columns: minmax(0, 1fr); } .card-timeline { grid-column: auto; } }
 </style>
 
 @code {
     protected override void OnInitialized() => State.Changed += OnStateChanged;
 
     private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    // Batch 5 records these with the insights engine.
+    private Task OnSearchCommittedAsync(string term) => Task.CompletedTask;
+
+    private Task OnCommandIssuedAsync(OverrideCommandRequest request) => Task.CompletedTask;
 
     public void Dispose() => State.Changed -= OnStateChanged;
 }
