@@ -481,12 +481,15 @@ $RECYCLE.BIN/
 # Vim temporary swap files
 *.swp
 
-# Local AI assistant / tooling config (not part of the project)
-.claude/
-CLAUDE.md
-AGENTS.md
-.cursor/
-.windsurf/
-
 # Uploaded sensor log/config attachments (runtime data, not source)
 SmartX.Api/UploadedFiles/
+
+# Editor / IDE local settings
+.idea/
+.vscode/
+*.code-workspace
+
+# Local test and coverage output
+coverage/
+*.coverage
+*.trx
