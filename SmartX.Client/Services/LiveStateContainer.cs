@@ -17,6 +17,7 @@ public sealed class LiveStateContainer
 {
     public const int MaxFeedItems = 60;
     public const int MaxAlertEvents = 40;
+    public const int MaxTimelinePoints = 120;
 
     private readonly List<LiveReading> _feed = [];
     private readonly List<AlertEvent> _alertEvents = [];
@@ -61,6 +62,45 @@ public sealed class LiveStateContainer
 
     public DateTimeOffset? LastPulseUtc { get; set; }
 
+    // ---- Override commands (stack lives server-side; this mirrors it) ----
+
+    public IReadOnlyList<ActuatorState> Actuators { get; private set; } = [];
+
+    /// <summary>The server's override command stack, most recent first.</summary>
+    public IReadOnlyList<CommandRecord> CommandHistory { get; private set; } = [];
+
+    public string? LastCommandMessage { get; private set; }
+
+    public bool LastCommandFailed { get; private set; }
+
+    public void ApplyCommandOutcome(CommandOutcome outcome, bool fromThisClient = false)
+    {
+        Actuators = outcome.Actuators;
+        CommandHistory = outcome.History;
+
+        if (!string.IsNullOrEmpty(outcome.Message) && (fromThisClient || outcome.Success))
+        {
+            LastCommandMessage = outcome.Message;
+            LastCommandFailed = !outcome.Success;
+        }
+
+        NotifyChanged();
+    }
+
+    // ---- Timeline for the selected device (kept so navigation does not reset it) ----
+
+    public string? TimelineMac { get; private set; }
+
+    public List<LiveReading> TimelinePoints { get; } = [];
+
+    public void SetTimeline(string mac, IEnumerable<LiveReading> points)
+    {
+        TimelineMac = mac;
+        TimelinePoints.Clear();
+        TimelinePoints.AddRange(points);
+        NotifyChanged();
+    }
+
     // ---- Writers (called by the hub connection and snapshot sync) ----
 
     public void SetConnectionStatus(HubConnectionStatus status, string? detail = null)
@@ -76,6 +116,18 @@ public sealed class LiveStateContainer
         if (_feed.Count > MaxFeedItems)
         {
             _feed.RemoveRange(MaxFeedItems, _feed.Count - MaxFeedItems);
+        }
+
+        if (TimelineMac is not null && string.Equals(TimelineMac, reading.MacAddress, StringComparison.OrdinalIgnoreCase))
+        {
+            // Keep the chart live without refetching. Insert in timestamp
+            // order, mirroring the server's SortedDictionary.
+            var index = TimelinePoints.FindLastIndex(p => p.TimestampUtc <= reading.TimestampUtc) + 1;
+            TimelinePoints.Insert(index, reading);
+            if (TimelinePoints.Count > MaxTimelinePoints)
+            {
+                TimelinePoints.RemoveAt(0);
+            }
         }
 
         if (_devices.TryGetValue(reading.MacAddress, out var device))
@@ -160,6 +212,10 @@ public sealed class LiveStateContainer
         Stats = snapshot.Stats;
         NotifyChanged();
     }
+
+    public bool HasAlert(string mac) => ActiveAlerts.Any(a => string.Equals(a.MacAddress, mac, StringComparison.OrdinalIgnoreCase));
+
+    public bool IsDisconnected(string mac) => ActiveAlerts.Any(a => a.Kind == AlertKind.Disconnected && string.Equals(a.MacAddress, mac, StringComparison.OrdinalIgnoreCase));
 
     public DeviceStatus? FindDevice(string mac) => _devices.GetValueOrDefault(mac);
 
