@@ -24,6 +24,10 @@ public sealed class FleetSimulator(HttpClient http, SimulatorOptions options)
     private readonly List<SimulatedDevice> _fleet = [];
     private readonly Lock _gate = new();
     private bool _spikeRequested;
+    private string? _pendingDisconnect;
+    private int _round;
+
+    public const int DisconnectAfterRounds = 3;
 
     public IReadOnlyList<SimulatedDevice> Fleet => _fleet;
 
@@ -109,8 +113,10 @@ public sealed class FleetSimulator(HttpClient http, SimulatorOptions options)
 
         if (options.DisconnectTarget is { } target)
         {
-            var silenced = Disconnect(target);
-            Console.WriteLine(silenced is null ? $"  --disconnect: no device called '{target}'" : $"  {silenced} starts disconnected (sends nothing)");
+            // Not silenced straight away: the gateway only watches nodes it has
+            // heard from, so the device reports for a few rounds first.
+            _pendingDisconnect = target;
+            Console.WriteLine($"  '{target}' will go silent after round {DisconnectAfterRounds}");
         }
     }
 
@@ -125,6 +131,12 @@ public sealed class FleetSimulator(HttpClient http, SimulatorOptions options)
         }
 
         // Actuators mirror whatever state the gateway last commanded.
+        if (++_round == DisconnectAfterRounds + 1 && _pendingDisconnect is { } pending)
+        {
+            var silenced = Disconnect(pending);
+            Console.WriteLine(silenced is null ? $"  --disconnect: no device called '{pending}'" : $"  >> {silenced} stopped sending - expect ONE disconnect alert after the gateway timeout");
+        }
+
         var actuators = await TryGetActuatorsAsync(ct);
         var states = actuators.ToDictionary(a => a.MacAddress, a => a.IsOn, StringComparer.OrdinalIgnoreCase);
         var anyPumpOn = actuators.Any(a => a.Kind == ActuatorKind.Pump && a.IsOn);

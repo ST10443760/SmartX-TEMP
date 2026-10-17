@@ -22,7 +22,7 @@ public sealed class SimulatorOptions
     /// <summary>Send a critical spike every N seconds (0 = never). Handy when there is no keyboard, e.g. in Docker.</summary>
     public int SpikeEverySeconds { get; private set; }
 
-    /// <summary>Device (MAC or name) to silence from the start, to demo the disconnect detector.</summary>
+    /// <summary>Device (MAC or name) to silence after a few rounds, to demo the disconnect detector.</summary>
     public string? DisconnectTarget { get; private set; }
 
     public static SimulatorOptions Parse(string[] args)
@@ -77,7 +77,7 @@ public sealed class SimulatorOptions
           --no-seeded           Only drive the devices this simulator registered    [SIM_INCLUDE_SEEDED=false]
           --spike               Send one critical spike on the first round
           --spike-every <s>     Send a critical spike every s seconds               [SIM_SPIKE_EVERY]
-          --disconnect <mac|name>  Start with this device silent                    [SIM_DISCONNECT]
+          --disconnect <mac|name>  Silence this device after round 3               [SIM_DISCONNECT]
 
         Keys while running:  c = critical spike   d = disconnect a device
                              r = reconnect all    q = quit
