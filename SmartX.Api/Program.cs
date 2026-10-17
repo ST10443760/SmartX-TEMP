@@ -83,6 +83,10 @@ builder.Services.AddSingleton<LiveDeviceRegistrar>();
 builder.Services.AddHostedService<TelemetryProcessingWorker>();
 builder.Services.AddHostedService<DisconnectMonitor>();
 
+// Automated Action Engine (suggestions + proactive device insights).
+builder.Services.AddSingleton<InsightsService>();
+builder.Services.AddHostedService<InsightsPublisher>();
+
 var app = builder.Build();
 
 // Plug every seeded sensor into the live structures before traffic arrives.
@@ -91,6 +95,10 @@ foreach (var sensor in app.Services.GetRequiredService<SensorLedger>())
 {
     registrar.Track(sensor);
 }
+
+// Seed the action engine with simulated operator history so suggestions
+// are visibly working from the first demo click.
+app.Services.GetRequiredService<InsightsService>().Seed(InsightsSeed.Build(DateTime.UtcNow));
 
 if (app.Environment.IsDevelopment())
 {
@@ -107,6 +115,7 @@ app.MapTelemetryEndpoints();
 app.MapStreamEndpoints();
 app.MapCommandEndpoints();
 app.MapSimulationEndpoints();
+app.MapInsightsEndpoints();
 
 app.MapHub<TelemetryHub>(HubEvents.HubRoute);
 
