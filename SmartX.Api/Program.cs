@@ -77,6 +77,7 @@ app.MapGet("/", () => Results.Ok(new { service = "SmartX.Api", status = "running
 app.MapDeploymentEndpoints();
 app.MapSensorEndpoints();
 app.MapTelemetryEndpoints();
+app.MapStreamEndpoints();
 
 app.MapHub<TelemetryHub>(HubEvents.HubRoute);
 
