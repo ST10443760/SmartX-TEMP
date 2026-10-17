@@ -1,0 +1,27 @@
+@page "/command-stream"
+@implements IDisposable
+@using SmartX.Client.Services
+@inject LiveStateContainer State
+
+<PageTitle>Command Stream &amp; History - Smart-X Gateway</PageTitle>
+
+<h1>Real-Time Command Stream &amp; History</h1>
+<p class="page-intro">
+    Live telemetry pushed from the gateway over SignalR, manual override commands with undo,
+    and the automated insights engine.
+</p>
+
+<p class="muted">@State.Devices.Count devices known, @State.Feed.Count readings in the live feed.</p>
+
+<style>
+    .page-intro { color: #5a6270; max-width: 720px; margin-bottom: 1.25rem; }
+    .muted { color: #9aa1ab; font-size: 0.85rem; }
+</style>
+
+@code {
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
