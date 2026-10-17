@@ -52,6 +52,12 @@ public sealed class SmartXApiClient(HttpClient http)
     public async Task<List<TelemetryPacket<double>>> GetHistoryAsync(string sensorId, int take = 20, CancellationToken ct = default)
         => await http.GetFromJsonAsync<List<TelemetryPacket<double>>>($"api/telemetry/history/{Uri.EscapeDataString(sensorId)}?take={take}", ct) ?? [];
 
+    public async Task<StreamSnapshot?> GetStreamSnapshotAsync(CancellationToken ct = default)
+        => await http.GetFromJsonAsync<StreamSnapshot>("api/stream/snapshot", ct);
+
+    public async Task<List<ActiveAlert>> GetActiveAlertsAsync(CancellationToken ct = default)
+        => await http.GetFromJsonAsync<List<ActiveAlert>>("api/stream/alerts", ct) ?? [];
+
     /// <summary>
     /// Builds the absolute download URL for an attachment, resolved against
     /// this same client's configured <see cref="HttpClient.BaseAddress"/> -

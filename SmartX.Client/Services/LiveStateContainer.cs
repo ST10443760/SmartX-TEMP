@@ -142,6 +142,25 @@ public sealed class LiveStateContainer
         NotifyChanged();
     }
 
+    public void ApplySnapshot(StreamSnapshot snapshot)
+    {
+        _devices.Clear();
+        foreach (var device in snapshot.Devices)
+        {
+            _devices[device.MacAddress] = device;
+        }
+
+        if (snapshot.RecentReadings.Count > 0)
+        {
+            _feed.Clear();
+            _feed.AddRange(snapshot.RecentReadings.Take(MaxFeedItems));
+        }
+
+        ActiveAlerts = snapshot.ActiveAlerts;
+        Stats = snapshot.Stats;
+        NotifyChanged();
+    }
+
     public DeviceStatus? FindDevice(string mac) => _devices.GetValueOrDefault(mac);
 
     public void NotifyChanged() => Changed?.Invoke();
