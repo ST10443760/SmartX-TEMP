@@ -1,0 +1,35 @@
+@* Shows the live SignalR link state in the top bar on every page. *@
+@implements IDisposable
+@using SmartX.Client.Services
+@inject LiveStateContainer State
+
+<span class="conn-badge conn-@State.ConnectionStatus" title="@State.ConnectionDetail">
+    <span class="conn-dot"></span>
+    @Label
+</span>
+
+<style>
+    .conn-badge { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.75rem; font-weight: 600; padding: 0.2rem 0.65rem; border-radius: 999px; white-space: nowrap; }
+    .conn-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
+    .conn-Connected { background: #e6f4ea; color: #1e7b34; }
+    .conn-Connecting, .conn-Reconnecting { background: #fff2e0; color: #a35c00; }
+    .conn-Reconnecting .conn-dot, .conn-Connecting .conn-dot { animation: conn-blink 1s infinite; }
+    .conn-Offline { background: #fdecea; color: #a33025; }
+    @@keyframes conn-blink { 50% { opacity: 0.2; } }
+</style>
+
+@code {
+    private string Label => State.ConnectionStatus switch
+    {
+        HubConnectionStatus.Connected => "Live",
+        HubConnectionStatus.Connecting => "Connecting...",
+        HubConnectionStatus.Reconnecting => "Reconnecting...",
+        _ => "Offline - polling"
+    };
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
