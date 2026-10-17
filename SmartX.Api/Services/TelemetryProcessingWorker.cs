@@ -31,6 +31,7 @@ public sealed class TelemetryProcessingWorker(
     AlertBroadcaster alerts,
     GatewayCounters counters,
     RecentReadingFeed recentFeed,
+    InsightsService insights,
     IHubContext<TelemetryHub> hub,
     ILogger<TelemetryProcessingWorker> logger) : BackgroundService
 {
@@ -111,6 +112,7 @@ public sealed class TelemetryProcessingWorker(
         directory.RecordReading(device.MacAddress, reading.Value, reading.Unit, reading.TimestampUtc, reading.Severity);
         history.Add(device.MacAddress, reading.TimestampUtc, reading);
         recentFeed.Add(reading);
+        insights.ObserveReading(reading);
 
         await hub.Clients.All.SendAsync(HubEvents.Telemetry, reading, ct);
 

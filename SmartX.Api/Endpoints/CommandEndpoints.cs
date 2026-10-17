@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using SmartX.Api.Hubs;
+using SmartX.Api.Services;
 using SmartX.Shared.Commands;
 using SmartX.Shared.Dtos;
 using SmartX.Shared.Realtime;
@@ -21,7 +22,7 @@ public static class CommandEndpoints
             .WithName("GetActuatorStates")
             .WithSummary("Commanded state of every pump, valve and relay - simulated devices report this back.");
 
-        group.MapPost("/", async (OverrideCommandRequest request, OverrideCommandProcessor processor, IHubContext<TelemetryHub> hub) =>
+        group.MapPost("/", async (OverrideCommandRequest request, OverrideCommandProcessor processor, InsightsService insights, IHubContext<TelemetryHub> hub) =>
             {
                 var outcome = processor.Execute(request, DateTime.UtcNow);
                 if (!outcome.Success)
@@ -30,6 +31,9 @@ public static class CommandEndpoints
                 }
 
                 await hub.Clients.All.SendAsync(HubEvents.Command, outcome);
+
+                // Every successful manual command feeds the action engine.
+                await insights.RecordCommandAsync(request);
                 return Results.Ok(outcome);
             })
             .WithName("ExecuteOverrideCommand")
