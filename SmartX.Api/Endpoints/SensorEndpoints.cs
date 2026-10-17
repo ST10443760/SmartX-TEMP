@@ -1,6 +1,7 @@
 using SmartX.Api.Services;
 using SmartX.Shared.Collections;
 using SmartX.Shared.Dtos;
+using SmartX.Shared.Enums;
 using SmartX.Shared.Models;
 using SmartX.Shared.Validation;
 
@@ -51,7 +52,11 @@ public static class SensorEndpoints
                 {
                     Id = Guid.NewGuid(),
                     MacAddress = request.MacAddress.Trim(),
+                    DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? request.MacAddress.Trim() : request.DisplayName.Trim(),
                     Category = request.Category,
+                    ActuatorKind = request.Category == SensorCategory.Actuator
+                        ? request.ActuatorKind ?? ActuatorKind.Relay
+                        : ActuatorKind.None,
                     DeploymentPath = DeploymentPath.Of([.. request.DeploymentPathSegments])
                 };
 
