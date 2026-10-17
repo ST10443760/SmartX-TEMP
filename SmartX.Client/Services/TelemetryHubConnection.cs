@@ -50,6 +50,7 @@ public sealed class TelemetryHubConnection(
         _connection.On<LiveReading>(HubEvents.Telemetry, state.ApplyReading);
         _connection.On<AlertEvent>(HubEvents.Alert, OnAlert);
         _connection.On<QueueStats>(HubEvents.QueueStats, state.SetQueueStats);
+        _connection.On<CommandOutcome>(HubEvents.Command, outcome => state.ApplyCommandOutcome(outcome));
 
         _connection.Reconnecting += error =>
         {
@@ -152,6 +153,12 @@ public sealed class TelemetryHubConnection(
             if (snapshot is not null)
             {
                 state.ApplySnapshot(snapshot);
+            }
+
+            var commands = await api.GetCommandsAsync();
+            if (commands is not null)
+            {
+                state.ApplyCommandOutcome(commands);
             }
         }
         catch
