@@ -2,6 +2,8 @@
 
 📺 Part 1 demo video: https://youtu.be/y5HmTqGUoi8
 
+📺 Part 2 demo video: https://youtu.be/ixgkVTnZp1Q
+
 Smart-X is a simulated IoT mesh ecosystem: ESP32-style nodes (hydroponic
 moisture sensors, smart power meters, pumps, valves and relays) register
 with a central .NET gateway and stream telemetry to it.
