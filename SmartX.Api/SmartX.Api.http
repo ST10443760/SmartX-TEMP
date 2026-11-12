@@ -113,3 +113,21 @@ GET {{SmartX.Api_HostAddress}}/api/history/Moisture Sensor C
 
 ### Part 3 - history range query with an explicit range and paging (times are UTC)
 GET {{SmartX.Api_HostAddress}}/api/history/24:6F:28:A1:00:03?from=2026-11-12T14:00:00Z&to=2026-11-12T16:00:00Z&page=1&pageSize=50
+
+### Part 3 - full topology: nodes, links, reachability and the MST
+GET {{SmartX.Api_HostAddress}}/api/topology
+
+### Part 3 - BFS reachability from the gateway
+GET {{SmartX.Api_HostAddress}}/api/topology/reachability
+
+### Part 3 - Prim's minimum spanning tree and its total cost
+GET {{SmartX.Api_HostAddress}}/api/topology/mst
+
+### Part 3 - one device's route to the gateway (MAC or name)
+GET {{SmartX.Api_HostAddress}}/api/topology/route/Moisture Sensor C
+
+### Part 3 - take Pump A down (Moisture Sensor C reroutes via Moisture Sensor D)
+POST {{SmartX.Api_HostAddress}}/api/simulate/disconnect/7C:9E:BD:33:22:06
+
+### Part 3 - bring Pump A back (routes heal back)
+POST {{SmartX.Api_HostAddress}}/api/simulate/reconnect/7C:9E:BD:33:22:06
