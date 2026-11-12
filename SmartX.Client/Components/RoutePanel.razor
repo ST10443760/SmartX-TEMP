@@ -1,0 +1,139 @@
+@* The selected node's power-efficient route to the gateway (its path in the MST), hop by
+   hop with each link's power cost and the total. It is re-fetched by the page whenever a
+   new topology arrives, so a disconnect elsewhere visibly reroutes it. The disconnect and
+   reconnect buttons call the same simulation endpoints as the Command Stream page. *@
+@implements IDisposable
+@using System.Globalization
+@using SmartX.Client.Services
+@using SmartX.Shared.Enums
+@inject LiveStateContainer State
+@inject SmartXApiClient Api
+
+@{
+    var route = State.SelectedRoute;
+}
+
+@if (State.TopologySelectedMac is null)
+{
+    <p class="muted">Click a node on the map, or search for one, to see its route to the gateway.</p>
+}
+else if (route is null || !string.Equals(route.MacAddress, State.TopologySelectedMac, StringComparison.OrdinalIgnoreCase))
+{
+    <p class="muted">Loading the route...</p>
+}
+else
+{
+    <div class="route-head">
+        <div>
+            <strong>@route.Name</strong>
+            <span class="mono muted">@route.MacAddress</span>
+            <span class="state state-@route.State">@Describe(route.State)</span>
+        </div>
+        <div class="route-actions">
+            <button class="btn-small" @onclick="DisconnectAsync" title="Adds this node to the disconnected set (same as the Command Stream button).">Simulate disconnect</button>
+            <button class="btn-small" @onclick="ReconnectAsync" title="Clears this node's disconnected state.">Simulate reconnect</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <p class="route-msg">@_message</p>
+    }
+
+    <p class="route-summary">@route.Message</p>
+
+    @if (route.Hops.Count > 0)
+    {
+        <table class="hop-table">
+            <thead>
+                <tr><th>#</th><th>From</th><th></th><th>To</th><th class="num">Power cost</th></tr>
+            </thead>
+            <tbody>
+                @for (var i = 0; i < route.Hops.Count; i++)
+                {
+                    var hop = route.Hops[i];
+                    <tr>
+                        <td>@(i + 1)</td>
+                        <td>@hop.FromName</td>
+                        <td class="arrow">→</td>
+                        <td>@hop.ToName</td>
+                        <td class="num">@hop.Cost.ToString("0.0", CultureInfo.InvariantCulture)</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr><td colspan="4">Total (@route.Hops.Count hop@(route.Hops.Count == 1 ? "" : "s"))</td><td class="num">@route.TotalCost.ToString("0.0", CultureInfo.InvariantCulture)</td></tr>
+            </tfoot>
+        </table>
+    }
+}
+
+<style>
+    .route-head { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; font-size: 0.86rem; }
+    .route-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+    .btn-small { background: #fff; border: 1px solid #cfd4db; border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.74rem; cursor: pointer; }
+    .route-msg { font-size: 0.78rem; color: #374151; background: #f5f6f8; padding: 0.35rem 0.6rem; border-radius: 6px; margin: 0.5rem 0 0; }
+    .route-summary { font-size: 0.82rem; color: #374151; margin: 0.5rem 0; }
+    .state { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; border-radius: 4px; padding: 0.1rem 0.4rem; margin-left: 0.4rem; }
+    .state-Online { background: #e6f4ea; color: #1e7b34; }
+    .state-Down { background: #fdecea; color: #a33025; }
+    .state-CutOff { background: #fff2e0; color: #a35c00; }
+    .hop-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .hop-table th, .hop-table td { padding: 0.3rem 0.4rem; border-bottom: 1px solid #eef0f2; text-align: left; }
+    .hop-table th { color: #6b7280; font-weight: 600; font-size: 0.74rem; }
+    .hop-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .hop-table .arrow { color: #4f46e5; width: 1.2rem; }
+    .hop-table tfoot td { font-weight: 700; border-bottom: none; }
+    .mono { font-family: ui-monospace, monospace; margin-left: 0.4rem; }
+    .muted { color: #9aa1ab; font-size: 0.8rem; }
+</style>
+
+@code {
+    private string? _message;
+    private string? _messageFor;
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(() =>
+    {
+        // A message belongs to the node it was about.
+        if (_messageFor != State.TopologySelectedMac)
+        {
+            _message = null;
+        }
+
+        StateHasChanged();
+    });
+
+    private static string Describe(MeshNodeState state) => state switch
+    {
+        MeshNodeState.CutOff => "Cut off",
+        MeshNodeState.Down => "Disconnected",
+        _ => state.ToString()
+    };
+
+    private Task DisconnectAsync() => RunAsync(mac => Api.SimulateDisconnectAsync(mac));
+
+    private Task ReconnectAsync() => RunAsync(mac => Api.SimulateReconnectAsync(mac));
+
+    private async Task RunAsync(Func<string, Task<string>> action)
+    {
+        if (State.TopologySelectedMac is not { } mac)
+        {
+            return;
+        }
+
+        _messageFor = mac;
+        try
+        {
+            // The new topology arrives over SignalR; nothing to refresh here.
+            _message = await action(mac);
+        }
+        catch (Exception ex)
+        {
+            _message = $"Could not reach the API: {ex.Message}";
+        }
+    }
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
