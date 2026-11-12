@@ -1,0 +1,225 @@
+@* Historical telemetry for the node selected on the topology page, answered by that
+   device's AVL tree on the gateway (GET /api/history/{mac}). The range picker works in
+   the browser's local time and is converted to UTC for the query. Results come back
+   sorted by time and paged. The readout compares the tree nodes the range query visited
+   with the readings stored, which is the tree's efficiency made visible. The range and
+   page live in the singleton state container, so they survive navigation. *@
+@implements IDisposable
+@using System.Globalization
+@using SmartX.Client.Services
+@using SmartX.Shared.Dtos
+@using SmartX.Shared.Enums
+@inject LiveStateContainer State
+@inject SmartXApiClient Api
+
+@if (State.TopologySelectedMac is null)
+{
+    <p class="muted">Select a node on the map to query its history.</p>
+}
+else
+{
+    var result = Current;
+
+    <div class="range-bar">
+        <label>From <input type="datetime-local" step="60" @bind="State.HistoryFromLocal" @bind:format="yyyy-MM-ddTHH:mm" /></label>
+        <label>To <input type="datetime-local" step="60" @bind="State.HistoryToLocal" @bind:format="yyyy-MM-ddTHH:mm" /></label>
+        <button class="btn-primary-small" @onclick="ApplyAsync">Run query</button>
+        <span class="presets">
+            <button class="chip" @onclick="() => PresetAsync(15)">Last 15 min</button>
+            <button class="chip" @onclick="() => PresetAsync(60)">Last hour</button>
+            <button class="chip" @onclick="() => PresetAsync(240)">Last 4 hours</button>
+        </span>
+    </div>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <p class="error">@_error</p>
+    }
+
+    @if (result is not null)
+    {
+        var share = result.TotalReadings == 0 ? 0 : 100.0 * result.NodesVisited / result.TotalReadings;
+
+        <div class="efficiency">
+            <div>
+                <strong>@result.MatchCount.ToString("N0", CultureInfo.InvariantCulture)</strong> readings in range ·
+                AVL range query visited <strong>@result.NodesVisited.ToString("N0", CultureInfo.InvariantCulture)</strong>
+                of <strong>@result.TotalReadings.ToString("N0", CultureInfo.InvariantCulture)</strong> stored readings
+                (@share.ToString("0.#", CultureInfo.InvariantCulture)%)
+            </div>
+            <div class="bar"><div class="bar-fill" style="width: @Math.Min(100, share).ToString("0.##", CultureInfo.InvariantCulture)%"></div></div>
+            @if (result.OldestUtc is { } oldest && result.NewestUtc is { } newest)
+            {
+                <div class="muted">History held for @result.DeviceName: @oldest.ToLocalTime().ToString("dd MMM HH:mm") to @newest.ToLocalTime().ToString("dd MMM HH:mm")</div>
+            }
+        </div>
+
+        @if (result.Items.Count == 0)
+        {
+            <p class="muted">No readings between those times.</p>
+        }
+        else
+        {
+            <table class="history-table">
+                <thead>
+                    <tr><th>Time</th><th class="num">Reading</th><th>Severity</th><th>Source</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var reading in result.Items)
+                    {
+                        <tr>
+                            <td class="mono">@reading.TimestampUtc.ToLocalTime().ToString("dd MMM HH:mm:ss")</td>
+                            <td class="num">@Format(reading)</td>
+                            <td><span class="sev sev-@reading.Severity">@reading.Severity</span></td>
+                            <td class="muted">@(reading.Lane == "Seed" ? "seeded history" : $"live ({reading.Lane})")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <div class="pager">
+                <button class="btn-small" disabled="@(result.Page <= 1)" @onclick="() => GoToAsync(result.Page - 1)">← Previous</button>
+                <span>Page @result.Page of @result.PageCount (@result.PageSize per page, oldest first)</span>
+                <button class="btn-small" disabled="@(result.Page >= result.PageCount)" @onclick="() => GoToAsync(result.Page + 1)">Next →</button>
+            </div>
+        }
+    }
+    else if (_loading)
+    {
+        <p class="muted">Querying...</p>
+    }
+}
+
+<style>
+    .range-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 0.7rem; font-size: 0.82rem; }
+    .range-bar label { display: flex; align-items: center; gap: 0.35rem; margin: 0; color: #374151; }
+    .range-bar input { padding: 0.3rem 0.45rem; border: 1px solid #cfd4db; border-radius: 6px; font-size: 0.82rem; }
+    .presets { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+    .chip { border: 1px solid #cfd4db; background: #fff; color: #374151; border-radius: 999px; padding: 0.2rem 0.6rem; font-size: 0.74rem; cursor: pointer; }
+    .btn-primary-small { background: #6a5acd; color: #fff; border: none; border-radius: 6px; padding: 0.35rem 0.8rem; font-size: 0.8rem; cursor: pointer; }
+    .btn-small { background: #fff; border: 1px solid #cfd4db; border-radius: 6px; padding: 0.25rem 0.6rem; font-size: 0.74rem; cursor: pointer; }
+    .btn-small:disabled { opacity: 0.45; cursor: default; }
+    .efficiency { font-size: 0.82rem; color: #374151; background: #f7f6ff; border: 1px solid #e3e0fa; border-radius: 8px; padding: 0.5rem 0.7rem; margin-bottom: 0.7rem; display: flex; flex-direction: column; gap: 0.3rem; }
+    .bar { height: 0.4rem; background: #e6e3fb; border-radius: 999px; overflow: hidden; }
+    .bar-fill { height: 100%; background: #6a5acd; }
+    .history-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .history-table th, .history-table td { padding: 0.28rem 0.45rem; border-bottom: 1px solid #eef0f2; text-align: left; }
+    .history-table th { color: #6b7280; font-weight: 600; font-size: 0.74rem; }
+    .history-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .sev { font-size: 0.68rem; font-weight: 700; border-radius: 4px; padding: 0.05rem 0.35rem; }
+    .sev-Normal { background: #e6f4ea; color: #1e7b34; }
+    .sev-Warning { background: #fff2e0; color: #a35c00; }
+    .sev-Critical { background: #fdecea; color: #a33025; }
+    .pager { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; font-size: 0.78rem; color: #5a6270; margin-top: 0.6rem; flex-wrap: wrap; }
+    .error { font-size: 0.8rem; color: #a33025; }
+    .mono { font-family: ui-monospace, monospace; }
+    .muted { color: #9aa1ab; font-size: 0.78rem; }
+</style>
+
+@code {
+    private const int PageSize = 25;
+
+    private bool _loading;
+    private string? _error;
+    private string? _loadedFor;
+
+    /// <summary>The cached result, only if it belongs to the selected node.</summary>
+    private HistoryQueryResult? Current => State.HistoryResult is { } r && string.Equals(r.MacAddress, State.TopologySelectedMac, StringComparison.OrdinalIgnoreCase) ? r : null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.Changed += OnStateChanged;
+
+        // Coming back to the page keeps the last result; only query if there is none.
+        _loadedFor = Current is null ? null : State.TopologySelectedMac;
+        await LoadIfSelectionChangedAsync();
+    }
+
+    private void OnStateChanged() => InvokeAsync(async () =>
+    {
+        await LoadIfSelectionChangedAsync();
+        StateHasChanged();
+    });
+
+    private async Task LoadIfSelectionChangedAsync()
+    {
+        if (State.TopologySelectedMac is not { } mac || string.Equals(mac, _loadedFor, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _loadedFor = mac;
+        State.HistoryPage = 1;
+        await QueryAsync();
+    }
+
+    private async Task ApplyAsync()
+    {
+        State.HistoryPage = 1;
+        await QueryAsync();
+    }
+
+    private async Task PresetAsync(int minutes)
+    {
+        var now = DateTime.Now;
+        State.HistoryToLocal = Trim(now);
+        State.HistoryFromLocal = Trim(now.AddMinutes(-minutes));
+        await ApplyAsync();
+    }
+
+    private async Task GoToAsync(int page)
+    {
+        State.HistoryPage = page;
+        await QueryAsync();
+    }
+
+    private async Task QueryAsync()
+    {
+        if (State.TopologySelectedMac is not { } mac)
+        {
+            return;
+        }
+
+        // Default range: the last hour, rounded to the minute like the picker.
+        State.HistoryToLocal ??= Trim(DateTime.Now).AddMinutes(1);
+        State.HistoryFromLocal ??= State.HistoryToLocal.Value.AddHours(-1);
+
+        var from = State.HistoryFromLocal.Value;
+        var to = State.HistoryToLocal.Value;
+        if (from > to)
+        {
+            _error = "'From' must be before 'To'.";
+            return;
+        }
+
+        _error = null;
+        _loading = true;
+        try
+        {
+            // The picker is local time (the browser's time zone); the API works in UTC.
+            var result = await Api.QueryHistoryAsync(mac, ToUtc(from), ToUtc(to), State.HistoryPage, PageSize);
+            if (string.Equals(mac, State.TopologySelectedMac, StringComparison.OrdinalIgnoreCase))
+            {
+                State.SetHistoryResult(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            _error = $"Could not reach the API: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static DateTime Trim(DateTime value) => new(value.Year, value.Month, value.Day, value.Hour, value.Minute, 0, DateTimeKind.Unspecified);
+
+    private static DateTime ToUtc(DateTime local) => DateTime.SpecifyKind(local, DateTimeKind.Local).ToUniversalTime();
+
+    private static string Format(LiveReading reading) => reading.Kind == ReadingKind.ValveState
+        ? (reading.Value >= 0.5 ? "open" : "closed")
+        : $"{reading.Value.ToString("0.#", CultureInfo.InvariantCulture)} {reading.Unit}";
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
