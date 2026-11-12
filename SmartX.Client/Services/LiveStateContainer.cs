@@ -111,6 +111,64 @@ public sealed class LiveStateContainer
         NotifyChanged();
     }
 
+    // ---- Part 3: network topology (kept here so the page keeps its selection and filters) ----
+
+    /// <summary>The latest mesh snapshot (nodes, links, BFS, MST), pushed over SignalR or fetched on resync.</summary>
+    public TopologySnapshot? Topology { get; private set; }
+
+    /// <summary>Text in the topology page's search box.</summary>
+    public string TopologySearch { get; set; } = "";
+
+    /// <summary>The node whose route and history are shown on the topology page.</summary>
+    public string? TopologySelectedMac { get; set; }
+
+    /// <summary>The selected node's route, refreshed whenever the topology changes.</summary>
+    public MeshRouteResult? SelectedRoute { get; private set; }
+
+    /// <summary>Whether MST links are drawn highlighted on the map.</summary>
+    public bool HighlightMst { get; set; } = true;
+
+    /// <summary>
+    /// Stores a topology snapshot unless it is older than the one already
+    /// held. A REST resync and a SignalR push can cross on the wire, and
+    /// without this check the older one could land last and show a node as
+    /// up after it went down. Returns true if the snapshot was applied.
+    /// </summary>
+    public bool SetTopology(TopologySnapshot snapshot)
+    {
+        if (Topology is not null && snapshot.GeneratedUtc < Topology.GeneratedUtc)
+        {
+            return false;
+        }
+
+        Topology = snapshot;
+        NotifyChanged();
+        return true;
+    }
+
+    public void SetSelectedRoute(MeshRouteResult? route)
+    {
+        SelectedRoute = route;
+        NotifyChanged();
+    }
+
+    // ---- Part 3: historical log (time range survives navigation) ----
+
+    /// <summary>Range picker values, in the browser's local time.</summary>
+    public DateTime? HistoryFromLocal { get; set; }
+
+    public DateTime? HistoryToLocal { get; set; }
+
+    public int HistoryPage { get; set; } = 1;
+
+    public HistoryQueryResult? HistoryResult { get; private set; }
+
+    public void SetHistoryResult(HistoryQueryResult? result)
+    {
+        HistoryResult = result;
+        NotifyChanged();
+    }
+
     // ---- Writers (called by the hub connection and snapshot sync) ----
 
     public void SetConnectionStatus(HubConnectionStatus status, string? detail = null)

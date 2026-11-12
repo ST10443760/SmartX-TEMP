@@ -54,4 +54,36 @@ public class LiveStateContainerTests
         Assert.Equal(SensorCategory.Actuator, state.CategoryFilter);
         Assert.True(state.AlertsOnly);
     }
+
+    [Fact]
+    public void OlderTopologySnapshot_ArrivingLate_DoesNotOverwriteTheNewerOne()
+    {
+        var state = new LiveStateContainer();
+        var t0 = new DateTime(2026, 11, 12, 15, 0, 0, DateTimeKind.Utc);
+        var newer = new TopologySnapshot { GeneratedUtc = t0.AddSeconds(1), Mst = new MstReport { TotalCost = 38.8 } };
+        var older = new TopologySnapshot { GeneratedUtc = t0, Mst = new MstReport { TotalCost = 37.2 } };
+
+        Assert.True(state.SetTopology(newer));
+        Assert.False(state.SetTopology(older));
+
+        Assert.Equal(38.8, state.Topology!.Mst.TotalCost);
+    }
+
+    [Fact]
+    public void TopologySelectionAndHistoryRange_AreKeptInTheSingleton()
+    {
+        var state = new LiveStateContainer();
+        var from = new DateTime(2026, 11, 12, 14, 0, 0);
+
+        state.TopologySelectedMac = "24:6F:28:A1:00:03";
+        state.TopologySearch = "Moisture";
+        state.HistoryFromLocal = from;
+        state.HighlightMst = false;
+
+        // Pages only read the container, so navigating away and back sees the same values.
+        Assert.Equal("24:6F:28:A1:00:03", state.TopologySelectedMac);
+        Assert.Equal("Moisture", state.TopologySearch);
+        Assert.Equal(from, state.HistoryFromLocal);
+        Assert.False(state.HighlightMst);
+    }
 }
