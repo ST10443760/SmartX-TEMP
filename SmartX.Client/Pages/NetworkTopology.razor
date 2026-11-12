@@ -1,0 +1,21 @@
+@page "/network-topology"
+@implements IDisposable
+@using SmartX.Client.Services
+@inject LiveStateContainer State
+
+<PageTitle>Network Topology &amp; Mesh Routing - Smart-X Gateway</PageTitle>
+
+<h1>Network Topology &amp; Mesh Routing</h1>
+<p class="page-intro">
+    The live mesh as a weighted graph. BFS from the gateway finds who can still get packets home,
+    Prim's minimum spanning tree picks the most power-efficient routes, and each sensor's history
+    is queried from its own AVL tree.
+</p>
+
+@code {
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
