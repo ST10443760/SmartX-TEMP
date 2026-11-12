@@ -2,6 +2,7 @@
 @implements IDisposable
 @using SmartX.Client.Services
 @inject LiveStateContainer State
+@inject SmartXApiClient Api
 
 <PageTitle>Network Topology &amp; Mesh Routing - Smart-X Gateway</PageTitle>
 
@@ -9,13 +10,106 @@
 <p class="page-intro">
     The live mesh as a weighted graph. BFS from the gateway finds who can still get packets home,
     Prim's minimum spanning tree picks the most power-efficient routes, and each sensor's history
-    is queried from its own AVL tree.
+    is queried from its own AVL tree. Disconnect a node and watch the network reroute live.
 </p>
 
-@code {
-    protected override void OnInitialized() => State.Changed += OnStateChanged;
+<div class="topo-grid">
+    <div class="col-main">
+        <section class="card">
+            <h3>Mesh network <span class="live-tag">live</span></h3>
+            <MeshNodeSearch OnNodeSelected="SelectAsync" />
+            <MeshMap OnNodeSelected="SelectAsync" />
+        </section>
+    </div>
 
-    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+    <div class="col-side">
+        <section class="card">
+            <h3>Route to the gateway</h3>
+            <RoutePanel />
+        </section>
+    </div>
+</div>
+
+<style>
+    .page-intro { color: #5a6270; max-width: 760px; margin-bottom: 1.25rem; }
+    .topo-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: 1rem; align-items: start; margin-bottom: 1rem; }
+    .col-main, .col-side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+    .card { background: #fff; border: 1px solid #e2e5ea; border-radius: 12px; padding: 1rem 1.1rem; min-width: 0; }
+    .card h3 { font-size: 0.98rem; margin: 0 0 0.75rem; }
+    .live-tag { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; background: #2fa84f; color: #fff; border-radius: 4px; padding: 0.05rem 0.35rem; vertical-align: middle; }
+    @@media (max-width: 1100px) { .topo-grid { grid-template-columns: minmax(0, 1fr); } }
+</style>
+
+@code {
+    // The topology version the selected route was last fetched for.
+    private DateTime? _routeFetchedFor;
+
+    protected override async Task OnInitializedAsync()
+    {
+        State.Changed += OnStateChanged;
+
+        // The layout's hub connection normally has the topology already; fetch
+        // it directly only if this page is the first thing that loaded.
+        if (State.Topology is null)
+        {
+            try
+            {
+                if (await Api.GetTopologyAsync() is { } topology)
+                {
+                    State.SetTopology(topology);
+                }
+            }
+            catch
+            {
+                // The hub's resync or polling fallback will fill it in.
+            }
+        }
+
+        await RefreshRouteIfStaleAsync();
+    }
+
+    private void OnStateChanged() => InvokeAsync(async () =>
+    {
+        await RefreshRouteIfStaleAsync();
+        StateHasChanged();
+    });
+
+    private async Task SelectAsync(string mac)
+    {
+        State.TopologySelectedMac = mac;
+        State.SetSelectedRoute(null);
+        _routeFetchedFor = null;
+        await RefreshRouteIfStaleAsync();
+    }
+
+    /// <summary>
+    /// Re-fetches the selected node's route whenever a newer topology has
+    /// arrived (a node went down or recovered), so the route panel and the
+    /// highlighted path on the map reroute without a page refresh.
+    /// </summary>
+    private async Task RefreshRouteIfStaleAsync()
+    {
+        if (State.TopologySelectedMac is not { } mac || State.Topology is not { } topology || _routeFetchedFor == topology.GeneratedUtc)
+        {
+            return;
+        }
+
+        _routeFetchedFor = topology.GeneratedUtc;
+        try
+        {
+            var route = await Api.GetRouteAsync(mac);
+
+            // Ignore the answer if the operator picked another node meanwhile.
+            if (string.Equals(mac, State.TopologySelectedMac, StringComparison.OrdinalIgnoreCase))
+            {
+                State.SetSelectedRoute(route);
+            }
+        }
+        catch
+        {
+            _routeFetchedFor = null; // try again on the next change
+        }
+    }
 
     public void Dispose() => State.Changed -= OnStateChanged;
 }
