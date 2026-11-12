@@ -87,6 +87,27 @@ public sealed class SmartXApiClient(HttpClient http)
     public async Task<string> SimulateDisconnectAsync(string mac, CancellationToken ct = default)
         => await ReadMessageAsync(await http.PostAsync($"api/simulate/disconnect/{Uri.EscapeDataString(mac)}", null, ct), ct);
 
+    public async Task<string> SimulateReconnectAsync(string mac, CancellationToken ct = default)
+        => await ReadMessageAsync(await http.PostAsync($"api/simulate/reconnect/{Uri.EscapeDataString(mac)}", null, ct), ct);
+
+    // ---- Part 3: network topology and historical queries ----
+
+    public async Task<TopologySnapshot?> GetTopologyAsync(CancellationToken ct = default)
+        => await http.GetFromJsonAsync<TopologySnapshot>("api/topology", ct);
+
+    public async Task<MeshRouteResult?> GetRouteAsync(string mac, CancellationToken ct = default)
+    {
+        var response = await http.GetAsync($"api/topology/route/{Uri.EscapeDataString(mac)}", ct);
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<MeshRouteResult>(ct) : null;
+    }
+
+    public async Task<HistoryQueryResult?> QueryHistoryAsync(string mac, DateTime fromUtc, DateTime toUtc, int page = 1, int pageSize = 25, CancellationToken ct = default)
+    {
+        var url = $"api/history/{Uri.EscapeDataString(mac)}?from={Uri.EscapeDataString(fromUtc.ToString("O"))}&to={Uri.EscapeDataString(toUtc.ToString("O"))}&page={page}&pageSize={pageSize}";
+        var response = await http.GetAsync(url, ct);
+        return response.IsSuccessStatusCode ? await response.Content.ReadFromJsonAsync<HistoryQueryResult>(ct) : null;
+    }
+
     private static async Task<CommandOutcome> ReadOutcomeAsync(HttpResponseMessage response, CancellationToken ct)
     {
         try
