@@ -436,9 +436,20 @@ a ready-made request in `SmartX.Api/SmartX.Api.http`.
 4. Click **Simulate reconnect** on Moisture Sensor D, then on Pump A. Each
    one heals the mesh live, and C's route goes back to 6.5 with an MST of
    37.2.
-5. With the simulator running you can use `d`/`r` instead, or start it with
-   `--disconnect "Pump A"`. The disconnect detector flags the silent node
-   after 10 seconds and the map reroutes on its own.
+5. **With the simulator running**, a button disconnect only lasts until the
+   device's next packet, about 2 seconds, because a real packet means the node
+   is back. So the map heals almost at once. To see the reroute with the
+   simulator running:
+   - silence the node from the simulator instead: start it with
+     `--disconnect "Pump A"`, or press `d`;
+   - the disconnect detector flags the silent node after 10 seconds and the
+     map reroutes on its own;
+   - `r` brings it back.
+
+   With the 6 simulator devices on the map, the MST is different, so the
+   numbers differ from the ones above. For example, with Pump A silenced,
+   Moisture Sensor C's MST route becomes 12 hops long, a good illustration
+   that an MST path is not a shortest path.
 6. API alternative: `curl -X POST http://localhost:5074/api/simulate/disconnect/7C:9E:BD:33:22:06`
    then `curl -X POST http://localhost:5074/api/simulate/reconnect/7C:9E:BD:33:22:06`.
 
