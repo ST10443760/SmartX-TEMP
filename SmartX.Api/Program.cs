@@ -100,6 +100,13 @@ foreach (var sensor in app.Services.GetRequiredService<SensorLedger>())
     registrar.Track(sensor);
 }
 
+// Part 3: four hours of history per seeded device in the AVL trees, so a
+// range query is visibly useful on first launch.
+HistorySeed.Populate(
+    app.Services.GetRequiredService<DeviceHistoryTrees<LiveReading>>(),
+    app.Services.GetRequiredService<DeviceDirectory>().Snapshot(),
+    DateTime.UtcNow);
+
 // Seed the action engine with simulated operator history so suggestions
 // are visibly working from the first demo click.
 app.Services.GetRequiredService<InsightsService>().Seed(InsightsSeed.Build(DateTime.UtcNow));
