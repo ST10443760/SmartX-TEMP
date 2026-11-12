@@ -83,6 +83,7 @@ builder.Services.AddSingleton(sp => new DisconnectDetector(
     sp.GetRequiredService<ActiveAlertSet>(),
     TimeSpan.FromSeconds(builder.Configuration.GetValue("Gateway:DisconnectTimeoutSeconds", 10))));
 builder.Services.AddSingleton<MeshTopologyService>();
+builder.Services.AddSingleton<TopologyBroadcaster>();
 builder.Services.AddSingleton<AlertBroadcaster>();
 builder.Services.AddSingleton<LiveDeviceRegistrar>();
 builder.Services.AddHostedService<TelemetryProcessingWorker>();

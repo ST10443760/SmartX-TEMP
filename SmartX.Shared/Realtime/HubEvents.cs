@@ -14,4 +14,7 @@ public static class HubEvents
     public const string Command = "command";
     public const string QueueStats = "queueStats";
     public const string Insights = "insights";
+
+    /// <summary>Part 3: a fresh TopologySnapshot, pushed when a node goes down, recovers or joins.</summary>
+    public const string Topology = "topology";
 }
