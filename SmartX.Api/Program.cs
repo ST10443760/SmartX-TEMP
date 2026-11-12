@@ -6,6 +6,7 @@ using SmartX.Shared.Collections;
 using SmartX.Shared.Commands;
 using SmartX.Shared.Dtos;
 using SmartX.Shared.Realtime;
+using SmartX.Shared.Trees;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -74,6 +75,9 @@ builder.Services.AddSingleton<RecentReadingFeed>();
 builder.Services.AddSingleton(new OverrideCommandProcessor(new ActuatorStateBoard(), new OverrideCommandStack(capacity: 100)));
 builder.Services.AddSingleton<DeviceDirectory>();
 builder.Services.AddSingleton(new ReadingHistoryStore<LiveReading>(capacityPerDevice: builder.Configuration.GetValue("Gateway:HistoryCapacityPerDevice", 200)));
+// Part 3: one AVL tree per device for time-range history queries. Fed by the
+// same worker step as ReadingHistoryStore (which still drives the timeline).
+builder.Services.AddSingleton(new DeviceHistoryTrees<LiveReading>(capacityPerDevice: builder.Configuration.GetValue("Gateway:TreeCapacityPerDevice", 10_000)));
 builder.Services.AddSingleton<ActiveAlertSet>();
 builder.Services.AddSingleton(sp => new DisconnectDetector(
     sp.GetRequiredService<ActiveAlertSet>(),

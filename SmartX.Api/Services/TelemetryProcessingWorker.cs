@@ -4,6 +4,7 @@ using SmartX.Api.Hubs;
 using SmartX.Shared.Dtos;
 using SmartX.Shared.Enums;
 using SmartX.Shared.Realtime;
+using SmartX.Shared.Trees;
 
 namespace SmartX.Api.Services;
 
@@ -14,7 +15,7 @@ namespace SmartX.Api.Services;
 /// <list type="number">
 ///   <item>finds the device in the MAC-keyed <see cref="DeviceDirectory"/> (O(1); unknown MACs are counted and dropped),</item>
 ///   <item>tells the <see cref="DisconnectDetector"/> the node is alive (raising "recovered" if it had been flagged),</item>
-///   <item>adds the reading to the device's sorted <see cref="ReadingHistoryStore{T}"/>,</item>
+///   <item>adds the reading to the device's sorted <see cref="ReadingHistoryStore{T}"/> and its <see cref="DeviceHistoryTrees{TValue}"/> AVL tree,</item>
 ///   <item>raises or clears a critical-reading entry in the <see cref="ActiveAlertSet"/>,</item>
 ///   <item>pushes the processed reading to every dashboard over SignalR.</item>
 /// </list>
@@ -26,6 +27,7 @@ public sealed class TelemetryProcessingWorker(
     IngestionPipeline pipeline,
     DeviceDirectory directory,
     ReadingHistoryStore<LiveReading> history,
+    DeviceHistoryTrees<LiveReading> historyTrees,
     ActiveAlertSet activeAlerts,
     DisconnectDetector disconnects,
     AlertBroadcaster alerts,
@@ -111,6 +113,7 @@ public sealed class TelemetryProcessingWorker(
 
         directory.RecordReading(device.MacAddress, reading.Value, reading.Unit, reading.TimestampUtc, reading.Severity);
         history.Add(device.MacAddress, reading.TimestampUtc, reading);
+        historyTrees.Add(device.MacAddress, reading.TimestampUtc, reading);
         recentFeed.Add(reading);
         insights.ObserveReading(reading);
 
