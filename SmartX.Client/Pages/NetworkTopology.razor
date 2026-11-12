@@ -20,6 +20,11 @@
             <MeshNodeSearch OnNodeSelected="SelectAsync" />
             <MeshMap OnNodeSelected="SelectAsync" />
         </section>
+
+        <section class="card">
+            <h3>Historical log @(SelectedName is { } name ? $"- {name}" : "") <span class="muted">(AVL tree range query)</span></h3>
+            <HistoryLog />
+        </section>
     </div>
 
     <div class="col-side">
@@ -46,6 +51,7 @@
     .col-main, .col-side { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
     .card { background: #fff; border: 1px solid #e2e5ea; border-radius: 12px; padding: 1rem 1.1rem; min-width: 0; }
     .card h3 { font-size: 0.98rem; margin: 0 0 0.75rem; }
+    .muted { color: #9aa1ab; font-size: 0.8rem; font-weight: 400; }
     .live-tag { font-size: 0.62rem; font-weight: 700; text-transform: uppercase; background: #2fa84f; color: #fff; border-radius: 4px; padding: 0.05rem 0.35rem; vertical-align: middle; }
     @@media (max-width: 1100px) { .topo-grid { grid-template-columns: minmax(0, 1fr); } }
 </style>
@@ -53,6 +59,10 @@
 @code {
     // The topology version the selected route was last fetched for.
     private DateTime? _routeFetchedFor;
+
+    private string? SelectedName => State.TopologySelectedMac is { } mac
+        ? State.Topology?.Nodes.FirstOrDefault(n => string.Equals(n.Id, mac, StringComparison.OrdinalIgnoreCase))?.Name
+        : null;
 
     protected override async Task OnInitializedAsync()
     {
