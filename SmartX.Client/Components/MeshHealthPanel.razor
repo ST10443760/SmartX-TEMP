@@ -1,0 +1,105 @@
+@* BFS reachability from the gateway over live links: how many devices can get packets
+   home, which nodes are down or cut off, and for each down node where its traffic hops
+   instead. Updates whenever a new topology is pushed. *@
+@implements IDisposable
+@using SmartX.Client.Services
+@inject LiveStateContainer State
+
+@{
+    var report = State.Topology?.Reachability;
+}
+
+@if (report is null)
+{
+    <p class="muted">Waiting for the topology...</p>
+}
+else
+{
+    var total = report.Reachable.Count + report.Unreachable.Count;
+
+    <div class="bfs-stats">
+        <div><span class="big ok">@report.Reachable.Count</span> of @total reachable</div>
+        <div><span class="big @(report.Unreachable.Count > 0 ? "bad" : "")">@report.Unreachable.Count</span> unreachable</div>
+    </div>
+
+    @if (report.Unreachable.Count == 0)
+    {
+        <p class="all-good">Every device has a live path to the gateway.</p>
+    }
+    else
+    {
+        <ul class="issues">
+            @foreach (var node in report.Unreachable)
+            {
+                <li>
+                    <span class="reason reason-@node.Reason">@(node.Reason == "CutOff" ? "Cut off" : "Down")</span>
+                    <button class="link-btn" @onclick="() => OnNodeSelected.InvokeAsync(node.Id)">@node.Name</button>
+                    @if (node.Reason == "CutOff")
+                    {
+                        <span class="muted">is up, but every path home runs through a down node</span>
+                    }
+                </li>
+            }
+        </ul>
+    }
+
+    @if (report.Reroutes.Count > 0)
+    {
+        <h4>Self-healing: where traffic hops instead</h4>
+        @foreach (var group in report.Reroutes.GroupBy(r => r.DownName))
+        {
+            <div class="reroute">
+                <strong>@group.Key</strong> is down. Its neighbours still reach the gateway:
+                <ul>
+                    @foreach (var option in group)
+                    {
+                        <li>via <strong>@option.ViaName</strong>: @string.Join(" → ", option.PathNames)</li>
+                    }
+                </ul>
+            </div>
+        }
+    }
+
+    <details class="bfs-order">
+        <summary>BFS discovery order (@report.Reachable.Count devices, nearest first)</summary>
+        <ol>
+            @foreach (var node in report.Reachable)
+            {
+                <li>@node.Name <span class="muted">(@node.Hops hop@(node.Hops == 1 ? "" : "s"))</span></li>
+            }
+        </ol>
+    </details>
+}
+
+<style>
+    .bfs-stats { display: flex; gap: 1.5rem; font-size: 0.82rem; color: #5a6270; margin-bottom: 0.5rem; }
+    .bfs-stats .big { font-size: 1.4rem; font-weight: 700; color: #1f2430; margin-right: 0.2rem; }
+    .bfs-stats .ok { color: #1e7b34; }
+    .bfs-stats .bad { color: #a33025; }
+    .all-good { font-size: 0.82rem; color: #1e7b34; margin: 0.3rem 0; }
+    .issues { list-style: none; padding: 0; margin: 0.3rem 0 0.6rem; font-size: 0.82rem; }
+    .issues li { padding: 0.2rem 0; }
+    .reason { font-size: 0.66rem; font-weight: 700; text-transform: uppercase; border-radius: 4px; padding: 0.1rem 0.4rem; margin-right: 0.35rem; }
+    .reason-Down { background: #fdecea; color: #a33025; }
+    .reason-CutOff { background: #fff2e0; color: #a35c00; }
+    .link-btn { background: none; border: none; padding: 0; color: #4f46e5; cursor: pointer; font-size: 0.82rem; text-decoration: underline; }
+    h4 { font-size: 0.84rem; margin: 0.7rem 0 0.35rem; }
+    .reroute { font-size: 0.8rem; background: #f7f6ff; border: 1px solid #e3e0fa; border-radius: 8px; padding: 0.45rem 0.6rem; margin-bottom: 0.4rem; }
+    .reroute ul { margin: 0.25rem 0 0; padding-left: 1.1rem; }
+    .bfs-order { font-size: 0.8rem; margin-top: 0.6rem; color: #374151; }
+    .bfs-order summary { cursor: pointer; color: #5a6270; }
+    .bfs-order ol { margin: 0.35rem 0 0; padding-left: 1.4rem; }
+    .muted { color: #9aa1ab; font-size: 0.78rem; }
+</style>
+
+@code {
+    /// <summary>Raised when the operator clicks an unreachable node's name.</summary>
+    [Parameter]
+    public EventCallback<string> OnNodeSelected { get; set; }
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
