@@ -57,6 +57,64 @@ public sealed class AvlTree<TValue>
         Count++;
     }
 
+    /// <summary>How many tree nodes the most recent <see cref="RangeQuery"/> touched.</summary>
+    public int LastQueryNodesVisited { get; private set; }
+
+    /// <summary>
+    /// Every reading with <paramref name="from"/> &lt;= timestamp &lt;= <paramref name="to"/>
+    /// (both ends inclusive), in timestamp order.
+    ///
+    /// It walks the tree in order but prunes: it only goes left when the
+    /// current key is after <paramref name="from"/> (anything smaller could
+    /// still be in range) and only goes right when the current key is before
+    /// <paramref name="to"/>. Whole subtrees that sit entirely outside the
+    /// range are never entered. Cost is O(log n + k) nodes for k results,
+    /// instead of the O(n) of scanning every reading.
+    /// </summary>
+    public RangeQueryResult<TValue> RangeQuery(DateTime from, DateTime to)
+    {
+        var items = new List<KeyValuePair<DateTime, TValue>>();
+        var visited = 0;
+
+        if (from <= to)
+        {
+            RangeQuery(_root, from, to, items, ref visited);
+        }
+
+        LastQueryNodesVisited = visited;
+        return new RangeQueryResult<TValue>(items, visited, Count);
+    }
+
+    private static void RangeQuery(AvlNode? node, DateTime from, DateTime to, List<KeyValuePair<DateTime, TValue>> items, ref int visited)
+    {
+        if (node is null)
+        {
+            return;
+        }
+
+        visited++;
+
+        // Only the left subtree can hold keys smaller than this one.
+        if (from < node.Key)
+        {
+            RangeQuery(node.Left, from, to, items, ref visited);
+        }
+
+        if (from <= node.Key && node.Key <= to)
+        {
+            foreach (var value in node.Values)
+            {
+                items.Add(new KeyValuePair<DateTime, TValue>(node.Key, value));
+            }
+        }
+
+        // Only the right subtree can hold keys larger than this one.
+        if (node.Key < to)
+        {
+            RangeQuery(node.Right, from, to, items, ref visited);
+        }
+    }
+
     /// <summary>Every reading in timestamp order (in-order traversal). O(n).</summary>
     public List<KeyValuePair<DateTime, TValue>> InOrder()
     {
