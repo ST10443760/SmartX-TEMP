@@ -1,0 +1,232 @@
+@* The live mesh drawn as inline SVG (no chart or graph library). Nodes sit at their
+   site-plan positions from the topology definition. Links are lines labelled with their
+   power cost. MST links are drawn heavier, the selected node's route is highlighted, and
+   links to a down node are dashed red. Node colour comes from the latest live reading
+   (healthy / warning / critical), and the BFS state (down / cut off) overrides it. *@
+@implements IDisposable
+@using System.Globalization
+@using SmartX.Client.Services
+@using SmartX.Shared.Dtos
+@using SmartX.Shared.Enums
+@inject LiveStateContainer State
+
+@{
+    var topology = State.Topology;
+}
+
+@if (topology is null)
+{
+    <p class="muted">Waiting for the topology from the gateway...</p>
+}
+else
+{
+    var byId = topology.Nodes.ToDictionary(n => n.Id, StringComparer.OrdinalIgnoreCase);
+    var routeLinks = RouteLinks();
+    var routeNodes = RouteNodes();
+    var width = topology.SiteWidth * Scale + Pad * 2;
+    var height = topology.SiteHeight * Scale + Pad * 2;
+
+    <svg class="mesh-svg" viewBox="0 0 @F(width) @F(height)" role="img" aria-label="Mesh network topology">
+        <rect x="0" y="0" width="@F(width)" height="@F(height)" class="site" rx="12" />
+
+        @foreach (var edge in topology.Edges)
+        {
+            if (!byId.TryGetValue(edge.A, out var a) || !byId.TryGetValue(edge.B, out var b))
+            {
+                continue;
+            }
+
+            var onRoute = routeLinks.Contains(Key(edge.A, edge.B));
+            var css = !edge.IsLive ? "link link-dead"
+                : onRoute ? "link link-route"
+                : edge.InMst && State.HighlightMst ? "link link-mst"
+                : "link";
+            var (mx, my) = ((X(a) + X(b)) / 2, (Y(a) + Y(b)) / 2);
+
+            <g>
+                <line x1="@F(X(a))" y1="@F(Y(a))" x2="@F(X(b))" y2="@F(Y(b))" class="@css">
+                    <title>@($"{a.Name} - {b.Name}: power cost {edge.Weight.ToString("0.0", CultureInfo.InvariantCulture)}{(edge.InMst ? " (in MST)" : "")}{(edge.IsLive ? "" : " (link down)")}")</title>
+                </line>
+                <text x="@F(mx)" y="@F(my - 4)" class="weight @(onRoute ? "weight-route" : "")" text-anchor="middle">@edge.Weight.ToString("0.0", CultureInfo.InvariantCulture)</text>
+            </g>
+        }
+
+        @foreach (var node in topology.Nodes)
+        {
+            var id = node.Id;
+            var selected = string.Equals(id, State.TopologySelectedMac, StringComparison.OrdinalIgnoreCase);
+            var x = X(node);
+            var y = Y(node);
+
+            <g class="node @(node.State == MeshNodeState.Gateway ? "" : "clickable")" @onclick="() => SelectAsync(node)">
+                <title>@Tooltip(node)</title>
+
+                @if (selected || routeNodes.Contains(id))
+                {
+                    <circle cx="@F(x)" cy="@F(y)" r="@(node.State == MeshNodeState.Gateway ? 32 : 26)" class="@(selected ? "ring-selected" : "ring-route")" />
+                }
+
+                @* SVG <text> directly inside a Razor code block is read as Razor's own
+                   <text> tag, so each branch is wrapped in a <g>. *@
+                @if (node.State == MeshNodeState.Gateway)
+                {
+                    <g>
+                        <rect x="@F(x - 24)" y="@F(y - 24)" width="48" height="48" rx="10" class="gateway" />
+                        <text x="@F(x)" y="@F(y + 5)" class="gateway-label" text-anchor="middle">GW</text>
+                    </g>
+                }
+                else
+                {
+                    <g>
+                        <circle cx="@F(x)" cy="@F(y)" r="18" class="dot @NodeCss(node)" />
+                        @if (node.State == MeshNodeState.Down)
+                        {
+                            <path d="M@F(x - 7),@F(y - 7) L@F(x + 7),@F(y + 7) M@F(x + 7),@F(y - 7) L@F(x - 7),@F(y + 7)" class="cross" />
+                        }
+                        else
+                        {
+                            <g><text x="@F(x)" y="@F(y + 4)" class="dot-label @(node.State == MeshNodeState.CutOff ? "dot-label-cut" : "")" text-anchor="middle">@Initials(node)</text></g>
+                        }
+                    </g>
+                }
+
+                <text x="@F(x)" y="@F(y + (node.State == MeshNodeState.Gateway ? 42 : 34))" class="name" text-anchor="middle">@node.Name</text>
+            </g>
+        }
+    </svg>
+
+    <div class="legend">
+        <span><i class="sw sw-ok"></i>Healthy</span>
+        <span><i class="sw sw-idle"></i>Healthy, no live reading yet</span>
+        <span><i class="sw sw-warn"></i>Warning</span>
+        <span><i class="sw sw-crit"></i>Critical</span>
+        <span><i class="sw sw-down"></i>Disconnected</span>
+        <span><i class="sw sw-cut"></i>Cut off (up, no path home)</span>
+        <span><i class="ln ln-mst"></i>MST link</span>
+        <span><i class="ln ln-route"></i>Selected route</span>
+        <span><i class="ln ln-dead"></i>Link down</span>
+    </div>
+
+    @if (topology.Unplaced.Count > 0)
+    {
+        <p class="muted unplaced">Not placed in the mesh definition (no position, so not drawn): @string.Join(", ", topology.Unplaced)</p>
+    }
+}
+
+<style>
+    .mesh-svg { width: 100%; height: auto; display: block; }
+    .mesh-svg .site { fill: #fafbfc; stroke: #e2e5ea; }
+    .mesh-svg .link { stroke: #cfd4db; stroke-width: 2; }
+    .mesh-svg .link-mst { stroke: #a79ce8; stroke-width: 4; }
+    .mesh-svg .link-route { stroke: #4f46e5; stroke-width: 7; stroke-linecap: round; }
+    .mesh-svg .link-dead { stroke: #c4362b; stroke-width: 2; stroke-dasharray: 6 6; opacity: 0.55; }
+    .mesh-svg .weight { fill: #8a919c; font-size: 11px; paint-order: stroke; stroke: #fafbfc; stroke-width: 3px; }
+    .mesh-svg .weight-route { fill: #4f46e5; font-weight: 700; }
+    .mesh-svg .node.clickable { cursor: pointer; }
+    .mesh-svg .gateway { fill: #1f2430; }
+    .mesh-svg .gateway-label { fill: #fff; font-size: 14px; font-weight: 700; }
+    .mesh-svg .dot { stroke: #fff; stroke-width: 3; }
+    .mesh-svg .dot-label { fill: #fff; font-size: 11px; font-weight: 700; pointer-events: none; }
+    .mesh-svg .st-ok { fill: #2fa84f; }
+    .mesh-svg .st-idle { fill: #8fcf9f; }
+    .mesh-svg .st-warn { fill: #d08a1d; }
+    .mesh-svg .st-crit { fill: #c4362b; }
+    .mesh-svg .st-down { fill: #9aa1ab; stroke: #c4362b; stroke-width: 3; }
+    .mesh-svg .st-cut { fill: #fff; stroke: #d08a1d; stroke-width: 3; stroke-dasharray: 5 3; }
+    .mesh-svg .dot-label-cut { fill: #a35c00; }
+    .mesh-svg .cross { stroke: #fff; stroke-width: 3; stroke-linecap: round; pointer-events: none; }
+    .mesh-svg .ring-selected { fill: none; stroke: #4f46e5; stroke-width: 4; }
+    .mesh-svg .ring-route { fill: none; stroke: #a79ce8; stroke-width: 3; }
+    .mesh-svg .name { fill: #1f2430; font-size: 12px; paint-order: stroke; stroke: #fafbfc; stroke-width: 4px; pointer-events: none; }
+    .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-size: 0.75rem; color: #5a6270; margin-top: 0.5rem; }
+    .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
+    .sw { width: 0.8rem; height: 0.8rem; border-radius: 50%; display: inline-block; }
+    .sw-ok { background: #2fa84f; } .sw-idle { background: #8fcf9f; } .sw-warn { background: #d08a1d; } .sw-crit { background: #c4362b; }
+    .sw-down { background: #9aa1ab; border: 2px solid #c4362b; } .sw-cut { background: #fff; border: 2px dashed #d08a1d; }
+    .ln { width: 1.4rem; height: 0; display: inline-block; border-top: 3px solid; }
+    .ln-mst { border-color: #a79ce8; } .ln-route { border-color: #4f46e5; border-top-width: 5px; } .ln-dead { border-color: #c4362b; border-top-style: dashed; }
+    .unplaced { margin-top: 0.4rem; }
+    .muted { color: #9aa1ab; font-size: 0.8rem; }
+</style>
+
+@code {
+    private const double Scale = 10, Pad = 45;
+
+    /// <summary>Raised when the operator clicks a node on the map.</summary>
+    [Parameter]
+    public EventCallback<string> OnNodeSelected { get; set; }
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private static double X(TopologyNode node) => Pad + node.X * Scale;
+
+    private static double Y(TopologyNode node) => Pad + node.Y * Scale;
+
+    private static string F(double value) => value.ToString("0.#", CultureInfo.InvariantCulture);
+
+    private static string Key(string a, string b) => string.Compare(a, b, StringComparison.OrdinalIgnoreCase) < 0 ? $"{a}|{b}".ToUpperInvariant() : $"{b}|{a}".ToUpperInvariant();
+
+    private HashSet<string> RouteLinks()
+        => State.SelectedRoute?.Hops.Select(h => Key(h.FromId, h.ToId)).ToHashSet() ?? [];
+
+    private HashSet<string> RouteNodes()
+        => State.SelectedRoute?.Hops.SelectMany(h => new[] { h.FromId, h.ToId }).ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+
+    private string NodeCss(TopologyNode node)
+    {
+        if (node.State == MeshNodeState.Down)
+        {
+            return "st-down";
+        }
+
+        if (node.State == MeshNodeState.CutOff)
+        {
+            return "st-cut";
+        }
+
+        var device = State.FindDevice(node.Id);
+        return device switch
+        {
+            { Severity: AlertSeverity.Critical } => "st-crit",
+            { Severity: AlertSeverity.Warning } => "st-warn",
+            { LastValue: null } or null => "st-idle",
+            _ => "st-ok"
+        };
+    }
+
+    private static string Initials(TopologyNode node)
+    {
+        var parts = node.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length switch
+        {
+            0 => "?",
+            1 => parts[0][..Math.Min(2, parts[0].Length)],
+            _ => $"{parts[0][0]}{parts[^1][..Math.Min(2, parts[^1].Length)]}"
+        };
+    }
+
+    private string Tooltip(TopologyNode node)
+    {
+        if (node.State == MeshNodeState.Gateway)
+        {
+            return "Central gateway - every route ends here";
+        }
+
+        var device = State.FindDevice(node.Id);
+        var reading = device?.LastValue is { } value ? $"{value.ToString("0.#", CultureInfo.InvariantCulture)} {device.Unit} ({device.Severity})" : "no live reading yet";
+        var route = node.RouteCost is { } cost ? $"route cost {cost.ToString("0.0", CultureInfo.InvariantCulture)}, {node.HopsToGateway} hop(s) minimum" : "no route to the gateway";
+        return $"{node.Name} ({node.Id})\n{node.State} - {reading}\n{route}\nClick to show its route and history";
+    }
+
+    private async Task SelectAsync(TopologyNode node)
+    {
+        if (node.State != MeshNodeState.Gateway)
+        {
+            await OnNodeSelected.InvokeAsync(node.Id);
+        }
+    }
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
