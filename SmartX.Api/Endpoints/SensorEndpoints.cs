@@ -25,7 +25,7 @@ public static class SensorEndpoints
             .WithName("GetSensorByMac")
             .WithSummary("Fetches a single sensor by MAC address / unique identifier.");
 
-        group.MapPost("/", (SensorRegistrationRequest request, SensorLedger ledger, DeploymentNode deploymentRoot, LiveDeviceRegistrar registrar) =>
+        group.MapPost("/", async (SensorRegistrationRequest request, SensorLedger ledger, DeploymentNode deploymentRoot, LiveDeviceRegistrar registrar, TopologyBroadcaster topology) =>
             {
                 if (string.IsNullOrWhiteSpace(request.MacAddress))
                 {
@@ -70,6 +70,9 @@ public static class SensorEndpoints
                 }
 
                 registrar.Track(sensor);
+
+                // A placed device (e.g. a simulator node) joins the mesh graph, so re-route.
+                await topology.PublishAsync();
 
                 return Results.Created($"/api/sensors/{sensor.MacAddress}", SensorRegistrationResult.Ok(sensor.Id));
             })
