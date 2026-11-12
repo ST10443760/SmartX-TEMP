@@ -121,7 +121,8 @@ public sealed class MeshTopologyService(DeviceDirectory directory, ActiveAlertSe
             {
                 MeshNodeState.Down => $"{device.DisplayName} is disconnected, so it has no route. Its neighbours route around it.",
                 MeshNodeState.CutOff => $"{device.DisplayName} is up, but every path to the gateway runs through a disconnected node.",
-                _ => $"{route.Hops.Count} hop(s) to the gateway, total power cost {route.TotalCost:0.0}."
+                // Invariant so the decimal point does not depend on the server's locale.
+                _ => FormattableString.Invariant($"{route.Hops.Count} hop(s) to the gateway, total power cost {route.TotalCost:0.0}.")
             }
         };
     }
