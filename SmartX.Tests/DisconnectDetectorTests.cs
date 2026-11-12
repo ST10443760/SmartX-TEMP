@@ -104,4 +104,19 @@ public class DisconnectDetectorTests
 
         Assert.Empty(detector.Scan(T0.AddHours(1)).NewlyDisconnected);
     }
+
+    [Fact]
+    public void ForceReconnect_ClearsTheAlert_AndTheNodeIsNotReflaggedWhileItStaysQuiet()
+    {
+        var alerts = new ActiveAlertSet();
+        var detector = new DisconnectDetector(alerts, Timeout);
+        detector.ForceDisconnect("AA:01", T0);
+
+        Assert.True(detector.ForceReconnect("AA:01"));
+        Assert.False(alerts.Contains("AA:01", AlertKind.Disconnected));
+
+        // A seeded device with no simulator never sends; it must stay recovered.
+        Assert.Empty(detector.Scan(T0.AddMinutes(5)).NewlyDisconnected);
+        Assert.False(detector.ForceReconnect("AA:01"));
+    }
 }

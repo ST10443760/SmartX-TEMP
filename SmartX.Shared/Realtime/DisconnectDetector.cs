@@ -92,6 +92,24 @@ public sealed class DisconnectDetector(ActiveAlertSet alerts, TimeSpan timeout)
         return isNew;
     }
 
+    /// <summary>
+    /// Demo hook, the opposite of <see cref="ForceDisconnect"/>: clears the
+    /// node's disconnected alert and stops watching it until it really sends
+    /// a packet again. Without that second part, a seeded device with no
+    /// simulator behind it would be flagged again one timeout later.
+    /// Returns true if the node was disconnected and has now recovered.
+    /// </summary>
+    public bool ForceReconnect(string mac)
+    {
+        lock (_gate)
+        {
+            _lastSeen.Remove(mac);
+            _lastFlagged.Remove(mac);
+        }
+
+        return alerts.TryRecover(mac, AlertKind.Disconnected);
+    }
+
     private bool DuePeriod(string mac, DateTime nowUtc)
     {
         lock (_gate)
