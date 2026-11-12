@@ -1,0 +1,82 @@
+@* Find a node by MAC or name. It uses the same matching rule as the Command Stream
+   search (DeviceFilter.Matches: case-insensitive "contains" on MAC and display name)
+   and filters as you type. Enter selects the first match, or a match can be clicked.
+   The text lives in the singleton state container so it survives navigation. *@
+@implements IDisposable
+@using SmartX.Client.Services
+@using SmartX.Shared.Dtos
+@using SmartX.Shared.Enums
+@inject LiveStateContainer State
+
+<div class="mesh-search">
+    <input class="filter-search" type="search" placeholder="Search by MAC or name, e.g. Moisture Sensor C"
+           value="@State.TopologySearch"
+           @oninput="OnInput"
+           @onkeydown="OnKeyDown" />
+
+    @if (!string.IsNullOrWhiteSpace(State.TopologySearch))
+    {
+        var matches = Matches().ToList();
+        <div class="match-list">
+            @if (matches.Count == 0)
+            {
+                <span class="muted">No node matches "@State.TopologySearch.Trim()".</span>
+            }
+            @foreach (var node in matches.Take(MaxShown))
+            {
+                var id = node.Id;
+                <button class="chip @(string.Equals(id, State.TopologySelectedMac, StringComparison.OrdinalIgnoreCase) ? "chip-on" : "")" @onclick="() => OnNodeSelected.InvokeAsync(id)">
+                    @node.Name <span class="mono">@node.Id</span>
+                </button>
+            }
+            @if (matches.Count > MaxShown)
+            {
+                <span class="muted">+@(matches.Count - MaxShown) more - keep typing to narrow it down.</span>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    .mesh-search { margin-bottom: 0.75rem; }
+    .filter-search { width: 100%; padding: 0.5rem 0.7rem; border: 1px solid #cfd4db; border-radius: 8px; font-size: 0.88rem; }
+    .match-list { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; align-items: center; }
+    .chip { border: 1px solid #cfd4db; background: #fff; color: #374151; border-radius: 999px; padding: 0.3rem 0.75rem; font-size: 0.78rem; cursor: pointer; }
+    .chip-on { background: #6a5acd; border-color: #6a5acd; color: #fff; }
+    .chip .mono { font-family: ui-monospace, monospace; font-size: 0.7rem; opacity: 0.7; margin-left: 0.3rem; }
+    .muted { color: #9aa1ab; font-size: 0.8rem; }
+</style>
+
+@code {
+    private const int MaxShown = 8;
+
+    /// <summary>Raised with the node's MAC when the operator picks a search result.</summary>
+    [Parameter]
+    public EventCallback<string> OnNodeSelected { get; set; }
+
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private IEnumerable<TopologyNode> Matches()
+        => (State.Topology?.Nodes ?? [])
+            .Where(n => n.State != MeshNodeState.Gateway
+                        && DeviceFilter.Matches(n.Id, n.Name, n.Category ?? SensorCategory.Environmental, false, State.TopologySearch, null, false))
+            .OrderBy(n => n.Name);
+
+    private void OnInput(ChangeEventArgs e)
+    {
+        State.TopologySearch = e.Value?.ToString() ?? "";
+        State.NotifyChanged();
+    }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter" && Matches().FirstOrDefault() is { } first)
+        {
+            await OnNodeSelected.InvokeAsync(first.Id);
+        }
+    }
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}
