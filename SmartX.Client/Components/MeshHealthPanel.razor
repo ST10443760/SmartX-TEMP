@@ -36,7 +36,7 @@ else
                     <button class="link-btn" @onclick="() => OnNodeSelected.InvokeAsync(node.Id)">@node.Name</button>
                     @if (node.Reason == "CutOff")
                     {
-                        <span class="muted">is up, but every path home runs through a down node</span>
+                        <span class="muted cut-note">is up, but every path home runs through a down node</span>
                     }
                 </li>
             }
@@ -90,6 +90,7 @@ else
     .bfs-order summary { cursor: pointer; color: #5a6270; }
     .bfs-order ol { margin: 0.35rem 0 0; padding-left: 1.4rem; }
     .muted { color: #9aa1ab; font-size: 0.78rem; }
+    .cut-note { margin-left: 0.3rem; }
 </style>
 
 @code {
