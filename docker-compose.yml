@@ -8,6 +8,8 @@ services:
     environment:
       - ASPNETCORE_URLS=http://+:8080
       - Gateway__DisconnectTimeoutSeconds=10
+      # Part 3: max readings kept per device in its AVL history tree.
+      - Gateway__TreeCapacityPerDevice=10000
 
   smartx-client:
     build:
