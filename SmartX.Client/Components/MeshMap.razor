@@ -63,7 +63,7 @@ else
 
                 @if (selected || routeNodes.Contains(id))
                 {
-                    <circle cx="@F(x)" cy="@F(y)" r="@(node.State == MeshNodeState.Gateway ? 32 : 26)" class="@(selected ? "ring-selected" : "ring-route")" />
+                    <circle cx="@F(x)" cy="@F(y)" r="@(node.State == MeshNodeState.Gateway ? 40 : 33)" class="@(selected ? "ring-selected" : "ring-route")" />
                 }
 
                 @* SVG <text> directly inside a Razor code block is read as Razor's own
@@ -71,26 +71,26 @@ else
                 @if (node.State == MeshNodeState.Gateway)
                 {
                     <g>
-                        <rect x="@F(x - 24)" y="@F(y - 24)" width="48" height="48" rx="10" class="gateway" />
-                        <text x="@F(x)" y="@F(y + 5)" class="gateway-label" text-anchor="middle">GW</text>
+                        <rect x="@F(x - 30)" y="@F(y - 30)" width="60" height="60" rx="12" class="gateway" />
+                        <text x="@F(x)" y="@F(y + 7)" class="gateway-label" text-anchor="middle">GW</text>
                     </g>
                 }
                 else
                 {
                     <g>
-                        <circle cx="@F(x)" cy="@F(y)" r="18" class="dot @NodeCss(node)" />
+                        <circle cx="@F(x)" cy="@F(y)" r="24" class="dot @NodeCss(node)" />
                         @if (node.State == MeshNodeState.Down)
                         {
-                            <path d="M@F(x - 7),@F(y - 7) L@F(x + 7),@F(y + 7) M@F(x + 7),@F(y - 7) L@F(x - 7),@F(y + 7)" class="cross" />
+                            <path d="M@F(x - 9),@F(y - 9) L@F(x + 9),@F(y + 9) M@F(x + 9),@F(y - 9) L@F(x - 9),@F(y + 9)" class="cross" />
                         }
                         else
                         {
-                            <g><text x="@F(x)" y="@F(y + 4)" class="dot-label @(node.State == MeshNodeState.CutOff ? "dot-label-cut" : "")" text-anchor="middle">@Initials(node)</text></g>
+                            <g><text x="@F(x)" y="@F(y + 5)" class="dot-label @(node.State == MeshNodeState.CutOff ? "dot-label-cut" : "")" text-anchor="middle">@Initials(node)</text></g>
                         }
                     </g>
                 }
 
-                <text x="@F(x)" y="@F(y + (node.State == MeshNodeState.Gateway ? 42 : 34))" class="name" text-anchor="middle">@node.Name</text>
+                <text x="@F(x)" y="@F(y + (node.State == MeshNodeState.Gateway ? 54 : 46))" class="name" text-anchor="middle">@node.Name</text>
             </g>
         }
     </svg>
@@ -116,17 +116,17 @@ else
 <style>
     .mesh-svg { width: 100%; height: auto; display: block; }
     .mesh-svg .site { fill: #fafbfc; stroke: #e2e5ea; }
-    .mesh-svg .link { stroke: #cfd4db; stroke-width: 2; }
-    .mesh-svg .link-mst { stroke: #a79ce8; stroke-width: 4; }
-    .mesh-svg .link-route { stroke: #4f46e5; stroke-width: 7; stroke-linecap: round; }
-    .mesh-svg .link-dead { stroke: #c4362b; stroke-width: 2; stroke-dasharray: 6 6; opacity: 0.55; }
-    .mesh-svg .weight { fill: #8a919c; font-size: 11px; paint-order: stroke; stroke: #fafbfc; stroke-width: 3px; }
+    .mesh-svg .link { stroke: #cfd4db; stroke-width: 2.5; }
+    .mesh-svg .link-mst { stroke: #a79ce8; stroke-width: 5; }
+    .mesh-svg .link-route { stroke: #4f46e5; stroke-width: 9; stroke-linecap: round; }
+    .mesh-svg .link-dead { stroke: #c4362b; stroke-width: 3; stroke-dasharray: 6 6; opacity: 0.55; }
+    .mesh-svg .weight { fill: #8a919c; font-size: 15px; paint-order: stroke; stroke: #fafbfc; stroke-width: 3px; }
     .mesh-svg .weight-route { fill: #4f46e5; font-weight: 700; }
     .mesh-svg .node.clickable { cursor: pointer; }
     .mesh-svg .gateway { fill: #1f2430; }
-    .mesh-svg .gateway-label { fill: #fff; font-size: 14px; font-weight: 700; }
+    .mesh-svg .gateway-label { fill: #fff; font-size: 19px; font-weight: 700; }
     .mesh-svg .dot { stroke: #fff; stroke-width: 3; }
-    .mesh-svg .dot-label { fill: #fff; font-size: 11px; font-weight: 700; pointer-events: none; }
+    .mesh-svg .dot-label { fill: #fff; font-size: 14px; font-weight: 700; pointer-events: none; }
     .mesh-svg .st-ok { fill: #2fa84f; }
     .mesh-svg .st-idle { fill: #8fcf9f; }
     .mesh-svg .st-warn { fill: #d08a1d; }
@@ -137,7 +137,7 @@ else
     .mesh-svg .cross { stroke: #fff; stroke-width: 3; stroke-linecap: round; pointer-events: none; }
     .mesh-svg .ring-selected { fill: none; stroke: #4f46e5; stroke-width: 4; }
     .mesh-svg .ring-route { fill: none; stroke: #a79ce8; stroke-width: 3; }
-    .mesh-svg .name { fill: #1f2430; font-size: 12px; paint-order: stroke; stroke: #fafbfc; stroke-width: 4px; pointer-events: none; }
+    .mesh-svg .name { fill: #1f2430; font-size: 17px; paint-order: stroke; stroke: #fafbfc; stroke-width: 4px; pointer-events: none; }
     .legend { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; font-size: 0.75rem; color: #5a6270; margin-top: 0.5rem; }
     .legend span { display: inline-flex; align-items: center; gap: 0.35rem; }
     .sw { width: 0.8rem; height: 0.8rem; border-radius: 50%; display: inline-block; }
@@ -150,7 +150,7 @@ else
 </style>
 
 @code {
-    private const double Scale = 10, Pad = 45;
+    private const double Scale = 10, Pad = 60;
 
     /// <summary>Raised when the operator clicks a node on the map.</summary>
     [Parameter]
@@ -196,15 +196,18 @@ else
         };
     }
 
+    // First letter of each word plus a short last word: "Moisture Sensor A" -> "MSA",
+    // "Power Meter A" -> "PMA", "Pump A" -> "PA", "Valve 1" -> "V1".
     private static string Initials(TopologyNode node)
     {
         var parts = node.Name.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length switch
+        if (parts.Length == 0)
         {
-            0 => "?",
-            1 => parts[0][..Math.Min(2, parts[0].Length)],
-            _ => $"{parts[0][0]}{parts[^1][..Math.Min(2, parts[^1].Length)]}"
-        };
+            return "?";
+        }
+
+        var last = parts[^1].Length <= 2 ? parts[^1] : parts[^1][..1];
+        return parts.Length == 1 ? parts[0][..Math.Min(2, parts[0].Length)] : string.Concat(parts[..^1].Select(p => p[0])) + last;
     }
 
     private string Tooltip(TopologyNode node)
