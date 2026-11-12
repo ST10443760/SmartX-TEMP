@@ -129,6 +129,7 @@ app.MapCommandEndpoints();
 app.MapSimulationEndpoints();
 app.MapInsightsEndpoints();
 app.MapHistoryEndpoints();
+app.MapTopologyEndpoints();
 
 app.MapHub<TelemetryHub>(HubEvents.HubRoute);
 
