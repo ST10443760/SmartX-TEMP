@@ -57,6 +57,60 @@ public sealed class AvlTree<TValue>
         Count++;
     }
 
+    /// <summary>The oldest timestamp in the tree, or null when empty. O(log n).</summary>
+    public DateTime? MinKey
+    {
+        get
+        {
+            var node = _root;
+            while (node?.Left is not null)
+            {
+                node = node.Left;
+            }
+
+            return node?.Key;
+        }
+    }
+
+    /// <summary>
+    /// Removes the single oldest reading, which is how the per-device cap
+    /// drops history. When that was the last reading at its timestamp the
+    /// node itself is unlinked and every node on the path back to the root is
+    /// rebalanced, so the tree stays AVL-balanced. O(log n).
+    /// </summary>
+    public bool RemoveOldest()
+    {
+        if (_root is null)
+        {
+            return false;
+        }
+
+        _root = RemoveOldest(_root);
+        Count--;
+        return true;
+    }
+
+    private AvlNode? RemoveOldest(AvlNode node)
+    {
+        if (node.Left is not null)
+        {
+            node.Left = RemoveOldest(node.Left);
+            return Rebalance(node);
+        }
+
+        // This is the leftmost (oldest) node.
+        if (node.Values.Count > 1)
+        {
+            node.Values.RemoveAt(0);
+            return node;
+        }
+
+        // A leftmost node has no left child, so its right subtree (at most
+        // one node, by the AVL rule) takes its place.
+        NodeCount--;
+        return node.Right;
+    }
+
     /// <summary>How many tree nodes the most recent <see cref="RangeQuery"/> touched.</summary>
     public int LastQueryNodesVisited { get; private set; }
 
