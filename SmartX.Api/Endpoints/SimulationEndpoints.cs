@@ -86,5 +86,32 @@ public static class SimulationEndpoints
             })
             .WithName("SimulateDisconnect")
             .WithSummary("Marks a node disconnected. Calling it twice shows the HashSet ignoring the duplicate.");
+
+        // Part 3: the other half of the self-healing demo when no simulator is
+        // running. Recovery goes through the same AlertBroadcaster path as a
+        // real recovery, so the topology is re-routed and pushed too.
+        group.MapPost("/reconnect/{mac}", async (string mac, DeviceDirectory directory, DisconnectDetector detector, AlertBroadcaster alerts) =>
+            {
+                if (!directory.TryGet(mac, out var device) || device is null)
+                {
+                    return Results.NotFound($"Unknown device '{mac}'.");
+                }
+
+                var recovered = detector.ForceReconnect(device.MacAddress);
+                if (recovered)
+                {
+                    await alerts.RecoveredAsync(device.MacAddress, AlertKind.Disconnected);
+                }
+
+                return Results.Ok(new
+                {
+                    recovered,
+                    message = recovered
+                        ? $"{device.DisplayName} removed from the disconnected set - routes recomputed."
+                        : $"{device.DisplayName} was not disconnected - nothing to do."
+                });
+            })
+            .WithName("SimulateReconnect")
+            .WithSummary("Clears a node's disconnected state so the mesh can be seen healing back.");
     }
 }
