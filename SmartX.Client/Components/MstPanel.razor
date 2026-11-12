@@ -1,0 +1,75 @@
+@* Prim's minimum spanning tree over the live nodes: its total power cost, its edges in the
+   order Prim's added them, and any live nodes left in another tree of the spanning forest
+   (unreachable from the gateway). The toggle switches the MST highlight on the map. *@
+@implements IDisposable
+@using System.Globalization
+@using SmartX.Client.Services
+@inject LiveStateContainer State
+
+@{
+    var mst = State.Topology?.Mst;
+}
+
+@if (mst is null)
+{
+    <p class="muted">Waiting for the topology...</p>
+}
+else
+{
+    <div class="mst-stats">
+        <div><span class="big">@mst.TotalCost.ToString("0.0", CultureInfo.InvariantCulture)</span> total power cost</div>
+        <div><span class="big">@mst.Edges.Count</span> links (nodes in the tree - 1)</div>
+        <div><span class="big">@mst.TreeCount</span> tree@(mst.TreeCount == 1 ? "" : "s") in the forest</div>
+    </div>
+
+    <label class="mst-toggle">
+        <input type="checkbox" checked="@State.HighlightMst" @onchange="e => SetHighlight((bool)e.Value!)" />
+        Highlight MST links on the map
+    </label>
+
+    @if (mst.ExcludedNames.Count > 0)
+    {
+        <p class="note">Left out (down): @string.Join(", ", mst.ExcludedNames)</p>
+    }
+
+    @if (mst.UnreachableNames.Count > 0)
+    {
+        <p class="note warn">Up but unreachable from the gateway (own tree in the forest): @string.Join(", ", mst.UnreachableNames)</p>
+    }
+
+    <details class="mst-edges">
+        <summary>MST links in the order Prim's added them</summary>
+        <ol>
+            @foreach (var edge in mst.Edges)
+            {
+                <li>@edge.ParentName → @edge.ChildName <span class="muted">@edge.Weight.ToString("0.0", CultureInfo.InvariantCulture)</span></li>
+            }
+        </ol>
+    </details>
+}
+
+<style>
+    .mst-stats { display: flex; flex-wrap: wrap; gap: 0.4rem 1.5rem; font-size: 0.8rem; color: #5a6270; margin-bottom: 0.5rem; }
+    .mst-stats .big { font-size: 1.3rem; font-weight: 700; color: #1f2430; margin-right: 0.2rem; }
+    .mst-toggle { font-size: 0.82rem; color: #374151; display: flex; align-items: center; gap: 0.35rem; cursor: pointer; margin: 0.2rem 0 0.4rem; }
+    .note { font-size: 0.8rem; color: #5a6270; margin: 0.25rem 0; }
+    .note.warn { color: #a35c00; }
+    .mst-edges { font-size: 0.8rem; color: #374151; }
+    .mst-edges summary { cursor: pointer; color: #5a6270; }
+    .mst-edges ol { margin: 0.35rem 0 0; padding-left: 1.4rem; }
+    .muted { color: #9aa1ab; font-size: 0.78rem; }
+</style>
+
+@code {
+    protected override void OnInitialized() => State.Changed += OnStateChanged;
+
+    private void OnStateChanged() => InvokeAsync(StateHasChanged);
+
+    private void SetHighlight(bool value)
+    {
+        State.HighlightMst = value;
+        State.NotifyChanged();
+    }
+
+    public void Dispose() => State.Changed -= OnStateChanged;
+}

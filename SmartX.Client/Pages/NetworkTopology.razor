@@ -27,6 +27,16 @@
             <h3>Route to the gateway</h3>
             <RoutePanel />
         </section>
+
+        <section class="card">
+            <h3>Reachability (BFS from the gateway)</h3>
+            <MeshHealthPanel OnNodeSelected="SelectAsync" />
+        </section>
+
+        <section class="card">
+            <h3>Minimum spanning tree (Prim's)</h3>
+            <MstPanel />
+        </section>
     </div>
 </div>
 
