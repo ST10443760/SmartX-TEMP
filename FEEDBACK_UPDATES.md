@@ -21,6 +21,27 @@ files were touched.
 No written feedback had been received when Part 2 was built. Entries will be
 added here when it arrives.
 
-## Part 2 changes
+## Lecturer feedback on Part 2
 
-This section will record changes made to Part 2 during the final PoE.
+Part 2 was marked 90%. The only written comment was:
+
+> "Some external sources are cited in source comments"
+
+What was done in response, in Part 3:
+
+| # | Response | Where |
+|---|---|---|
+| 1 | Kept citing every external algorithm or reference source in the code comments, next to the code that relies on it. The AVL tree cites Adelson-Velsky and Landis (1962). BFS cites Cormen et al., *Introduction to Algorithms* (3rd ed.), section 22.2. Prim's algorithm cites the same book, section 23.2, and the Microsoft Learn page for `PriorityQueue<TElement,TPriority>`. Where the code is written from general knowledge of an algorithm rather than copied from a source, the comment says so plainly instead of naming a source that was not used. | `SmartX.Shared/Trees/AvlTree.cs`, `SmartX.Shared/Graphs/MeshReachability.cs`, `SmartX.Shared/Graphs/PrimMinimumSpanningTree.cs` |
+| 2 | Listed the same sources together in the README's implementation report, so they can be checked in one place. | `README.md` ("Sources" under "Implementation report") |
+| 3 | Kept the code attribution document up to date with the Part 3 sources. | `PROG7312_Code_Attribution.docx` |
+
+## Part 2 changes made during Part 3
+
+| # | What was wrong or missing | What changed | File(s) |
+|---|---|---|---|
+| 1 | The disconnect demo only went one way. A seeded device marked disconnected with **Simulate disconnect** stayed down forever unless the console simulator was running, so the Part 3 "node recovers and routes heal back" step could not be shown from the dashboard alone. | Added `DisconnectDetector.ForceReconnect`, the opposite of `ForceDisconnect`. It clears the alert and stops watching the node until it really reports again. Without the second part, a seeded device with no simulator behind it would be flagged again one timeout later. Added `POST /api/simulate/reconnect/{mac}`, which raises the normal "recovered" event, and a **Simulate reconnect** button on the topology page. Covered by a new test. | `SmartX.Shared/Realtime/DisconnectDetector.cs`, `SmartX.Api/Endpoints/SimulationEndpoints.cs`, `SmartX.Tests/DisconnectDetectorTests.cs` |
+| 2 | Disconnects and recoveries only produced an alert, so nothing else on the dashboard could react to the shape of the mesh changing. | `AlertBroadcaster`, which every disconnect and recovery already goes through, now also pushes a freshly computed topology (BFS + MST) over a new `topology` SignalR event. Duplicate disconnects push nothing, because nothing changed. | `SmartX.Api/Services/AlertBroadcaster.cs`, `SmartX.Api/Services/TopologyBroadcaster.cs`, `SmartX.Shared/Realtime/HubEvents.cs` |
+| 3 | The worker only stored history in the capped `SortedDictionary` (200 points per device), which is right for the timeline chart but too short for time-range questions. | The same worker step now also inserts each reading into the device's AVL tree. `ReadingHistoryStore` and the Part 2 timeline are unchanged. | `SmartX.Api/Services/TelemetryProcessingWorker.cs`, `SmartX.Api/Program.cs` |
+| 4 | The client resync and polling fallback did not know about the topology. | The hub connection listens for `topology`, and every resync (reconnect or offline polling) also fetches `/api/topology`. The state container ignores a snapshot older than the one it holds, so a REST response and a push that cross on the wire cannot roll the map back. Covered by new tests. | `SmartX.Client/Services/TelemetryHubConnection.cs`, `SmartX.Client/Services/LiveStateContainer.cs`, `SmartX.Tests/LiveStateContainerTests.cs` |
+| 5 | The Mesh Routing menu item and Home pillar were locked "coming soon" placeholders. | Both now open the Network Topology page. The coming-soon page was removed because nothing points to it any more. | `SmartX.Client/Layout/NavMenu.razor`, `SmartX.Client/Pages/Home.razor`, `SmartX.Client/Pages/ComingSoon.razor` (removed) |
+| 6 | A device registered by the simulator only appeared on the dashboard tables. | The registration endpoint pushes a fresh topology, so a placed device joins the mesh map live. | `SmartX.Api/Endpoints/SensorEndpoints.cs` |
