@@ -52,6 +52,7 @@ public sealed class TelemetryHubConnection(
         _connection.On<QueueStats>(HubEvents.QueueStats, state.SetQueueStats);
         _connection.On<CommandOutcome>(HubEvents.Command, outcome => state.ApplyCommandOutcome(outcome));
         _connection.On<InsightsSnapshot>(HubEvents.Insights, state.SetInsights);
+        _connection.On<TopologySnapshot>(HubEvents.Topology, snapshot => state.SetTopology(snapshot));
 
         _connection.Reconnecting += error =>
         {
@@ -166,6 +167,13 @@ public sealed class TelemetryHubConnection(
             if (insights is not null)
             {
                 state.SetInsights(insights);
+            }
+
+            // The polling fallback keeps the mesh view current too.
+            var topology = await api.GetTopologyAsync();
+            if (topology is not null)
+            {
+                state.SetTopology(topology);
             }
         }
         catch
