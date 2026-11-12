@@ -107,3 +107,9 @@ POST {{SmartX.Api_HostAddress}}/api/insights/search
 Content-Type: application/json
 
 { "searchText": "Power Meter A" }
+
+### Part 3 - history range query (AVL tree), last hour of history by default
+GET {{SmartX.Api_HostAddress}}/api/history/Moisture Sensor C
+
+### Part 3 - history range query with an explicit range and paging (times are UTC)
+GET {{SmartX.Api_HostAddress}}/api/history/24:6F:28:A1:00:03?from=2026-11-12T14:00:00Z&to=2026-11-12T16:00:00Z&page=1&pageSize=50
