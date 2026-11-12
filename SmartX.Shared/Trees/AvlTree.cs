@@ -72,6 +72,21 @@ public sealed class AvlTree<TValue>
         }
     }
 
+    /// <summary>The newest timestamp in the tree, or null when empty. O(log n).</summary>
+    public DateTime? MaxKey
+    {
+        get
+        {
+            var node = _root;
+            while (node?.Right is not null)
+            {
+                node = node.Right;
+            }
+
+            return node?.Key;
+        }
+    }
+
     /// <summary>
     /// Removes the single oldest reading, which is how the per-device cap
     /// drops history. When that was the last reading at its timestamp the
