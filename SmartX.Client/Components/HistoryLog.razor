@@ -2,8 +2,13 @@
    device's AVL tree on the gateway (GET /api/history/{mac}). The range picker works in
    the browser's local time and is converted to UTC for the query. Results come back
    sorted by time and paged. The readout compares the tree nodes the range query visited
-   with the readings stored, which is the tree's efficiency made visible. The range and
-   page live in the singleton state container, so they survive navigation. *@
+   with the readings stored, which is the tree's efficiency made visible. The committed
+   range and page live in the singleton state container, so they survive navigation.
+
+   The two inputs edit local drafts, not the state container. A draft is only committed
+   when Run query or a preset is pressed, and an incomplete draft is reported rather than
+   replaced with a default. While a date input has focus the component skips re-rendering,
+   so live SignalR updates can never touch an input the operator is editing. *@
 @implements IDisposable
 @using System.Globalization
 @using SmartX.Client.Services
@@ -21,8 +26,12 @@ else
     var result = Current;
 
     <div class="range-bar">
-        <label>From <input type="datetime-local" step="60" @bind="State.HistoryFromLocal" @bind:format="yyyy-MM-ddTHH:mm" /></label>
-        <label>To <input type="datetime-local" step="60" @bind="State.HistoryToLocal" @bind:format="yyyy-MM-ddTHH:mm" /></label>
+        <label>From <input type="datetime-local" step="60" value="@_fromDraft"
+                           @oninput="e => _fromDraft = HistoryRangeInput.Normalise(e.Value?.ToString())"
+                           @onfocusin="OnDateFocusIn" @onfocusout="OnDateFocusOut" /></label>
+        <label>To <input type="datetime-local" step="60" value="@_toDraft"
+                         @oninput="e => _toDraft = HistoryRangeInput.Normalise(e.Value?.ToString())"
+                         @onfocusin="OnDateFocusIn" @onfocusout="OnDateFocusOut" /></label>
         <button class="btn-primary-small" @onclick="ApplyAsync">Run query</button>
         <span class="presets">
             <button class="chip" @onclick="() => PresetAsync(15)">Last 15 min</button>
@@ -123,6 +132,14 @@ else
     private string? _error;
     private string? _loadedFor;
 
+    // What the two inputs show, in the input's "yyyy-MM-ddTHH:mm" shape. Only
+    // copied into State.HistoryFromLocal / HistoryToLocal on Run query or a preset.
+    private string _fromDraft = "";
+    private string _toDraft = "";
+
+    // True while a date input has focus (its picker may be open).
+    private bool _editingDate;
+
     /// <summary>The cached result, only if it belongs to the selected node.</summary>
     private HistoryQueryResult? Current => State.HistoryResult is { } r && string.Equals(r.MacAddress, State.TopologySelectedMac, StringComparison.OrdinalIgnoreCase) ? r : null;
 
@@ -130,9 +147,28 @@ else
     {
         State.Changed += OnStateChanged;
 
+        // First load or coming back to the page: show the committed range.
+        SyncDraftsFromState();
+
         // Coming back to the page keeps the last result; only query if there is none.
         _loadedFor = Current is null ? null : State.TopologySelectedMac;
         await LoadIfSelectionChangedAsync();
+    }
+
+    // Skip renders while the operator is editing a date, so nothing (live
+    // updates, input events) rewrites the input under them.
+    protected override bool ShouldRender() => !_editingDate;
+
+    private void OnDateFocusIn() => _editingDate = true;
+
+    // Clearing the flag lets the automatic render after this handler go through,
+    // so anything that changed while editing is shown as soon as focus leaves.
+    private void OnDateFocusOut() => _editingDate = false;
+
+    private void SyncDraftsFromState()
+    {
+        _fromDraft = HistoryRangeInput.Format(State.HistoryFromLocal);
+        _toDraft = HistoryRangeInput.Format(State.HistoryToLocal);
     }
 
     private void OnStateChanged() => InvokeAsync(async () =>
@@ -153,8 +189,18 @@ else
         await QueryAsync();
     }
 
+    // Run query: commit the drafts. An incomplete or reversed draft is reported
+    // and the committed range is left as it was.
     private async Task ApplyAsync()
     {
+        if (!HistoryRangeInput.TryCommit(_fromDraft, _toDraft, out var from, out var to, out var error))
+        {
+            _error = error;
+            return;
+        }
+
+        State.HistoryFromLocal = from;
+        State.HistoryToLocal = to;
         State.HistoryPage = 1;
         await QueryAsync();
     }
@@ -164,7 +210,8 @@ else
         var now = DateTime.Now;
         State.HistoryToLocal = Trim(now);
         State.HistoryFromLocal = Trim(now.AddMinutes(-minutes));
-        await ApplyAsync();
+        State.HistoryPage = 1;
+        await QueryAsync();
     }
 
     private async Task GoToAsync(int page)
@@ -183,6 +230,9 @@ else
         // Default range: the last hour, rounded to the minute like the picker.
         State.HistoryToLocal ??= Trim(DateTime.Now).AddMinutes(1);
         State.HistoryFromLocal ??= State.HistoryToLocal.Value.AddHours(-1);
+
+        // The inputs always show the range that was actually queried.
+        SyncDraftsFromState();
 
         var from = State.HistoryFromLocal.Value;
         var to = State.HistoryToLocal.Value;
