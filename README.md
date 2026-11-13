@@ -270,6 +270,15 @@ the keys, run `docker attach smartx-smartx-simulator-1` and detach with
    - **Historical log:** From/To range pickers (browser local time), quick
      presets, a time-sorted table paged 25 at a time, and the readout
      *"N readings in range · AVL range query visited V of T stored readings"*.
+     - The From/To values only take effect when you press **Run query**, and
+       a half-typed date gives a message instead of being replaced.
+     - The presets and the default range normally end at the current minute.
+       Without the simulator nothing is added after the seeded history ends,
+       so once the app has been open longer than the preset, the preset moves
+       back to end at the newest stored reading. The card then says so, for
+       example *"No live readings since 04:52, showing the last 15 minutes of
+       stored data."*
+     - A range you pick by hand is always used exactly as picked.
 
    Filters, the feed, the selected device, the alert list, the command
    history, the topology search, the selected node, the MST toggle and the
@@ -380,6 +389,11 @@ a ready-made request in `SmartX.Api/SmartX.Api.http`.
 3. Click **Last 15 min**. You get about 180 readings while visiting under 190
    tree nodes, roughly 6.5% of the tree. A narrow range touches a small part
    of the tree; a wide range has to visit every matching reading.
+   - If the API has been running for more than 15 minutes without the
+     simulator, there are no readings in the last 15 minutes. **Last 15 min**
+     then shows the last 15 minutes of stored data and an orange note saying
+     when live readings stopped.
+   - With the simulator running, the presets always show live data.
 4. Pick your own range: set **From** and **To** (for example 14:00 and 16:00
    today, as long as it falls inside the *"History held for ..."* line shown
    under the readout) and click **Run query**.
