@@ -804,9 +804,11 @@ Line numbers point at the start of the relevant class, method or block.
 | Search by MAC or name (same rule as the Command Stream) | `SmartX.Client/Components/MeshNodeSearch.razor:64` |
 | Route hops in order with each cost and the total | `SmartX.Client/Components/RoutePanel.razor:47` |
 | Route recomputed when a new topology arrives | `SmartX.Client/Pages/NetworkTopology.razor:110` |
-| Historical log: range picker | `SmartX.Client/Components/HistoryLog.razor:24` |
-| Historical log: nodes visited vs total readings | `SmartX.Client/Components/HistoryLog.razor:46` |
-| Historical log: paging | `SmartX.Client/Components/HistoryLog.razor:80` |
+| Historical log: range picker (drafts committed on Run query) | `SmartX.Client/Components/HistoryLog.razor:29`, drafts at `SmartX.Client/Components/HistoryLog.razor:142`, parsing in `SmartX.Client/Services/HistoryRangeInput.cs:17` |
+| Historical log: no re-render while a date input has focus | `SmartX.Client/Components/HistoryLog.razor:165` |
+| Historical log: presets anchored to the newest stored reading when live data has stopped | `SmartX.Client/Components/HistoryLog.razor:237`, rules in `SmartX.Client/Services/HistoryPresetWindow.cs:15` |
+| Historical log: nodes visited vs total readings | `SmartX.Client/Components/HistoryLog.razor:59` |
+| Historical log: paging | `SmartX.Client/Components/HistoryLog.razor:93` |
 | Live topology over SignalR (client listener) | `SmartX.Client/Services/TelemetryHubConnection.cs:55` |
 | Stale snapshot guard (REST and push crossing) | `SmartX.Client/Services/LiveStateContainer.cs:137` |
 | Connection state shown as on the Command Stream | `SmartX.Client/Components/ConnectionBadge.razor:6` (top bar of every page) |
