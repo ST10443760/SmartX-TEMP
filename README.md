@@ -935,6 +935,15 @@ In Development mode the OpenAPI document is at
 | GET | `/api/topology/route/{device}` | **Part 3** - a device's MST route, hop by hop |
 | WS | `/hubs/telemetry` | SignalR hub: `telemetry`, `alert`, `command`, `queueStats`, `insights`, `topology` |
 
+## Documents in this repository
+
+| File | What it is |
+|---|---|
+| `SmartX_Part3_Completion_Report.pdf` | Final PoE project completion report and technology recommendations |
+| `PROG7312_Code_Attribution.docx` | Code attribution document: external sources (including the Part 3 AVL, BFS, Prim's and `PriorityQueue` references) and the statement on tools used |
+| `smartx-research-report (1).pdf` | Part 1, Task 1 research report on user engagement strategies for the telemetry dashboard |
+| `FEEDBACK_UPDATES.md` | Changes made to earlier parts, fixes after each build, and the response to lecturer feedback |
+
 ## Notes
 
 - All gateway state is in memory and resets when the API restarts. The four
