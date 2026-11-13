@@ -116,7 +116,7 @@ dotnet build
 dotnet test
 ```
 
-`dotnet test` runs 138 xUnit tests (90 from Parts 1 and 2, 48 added for Part 3).
+`dotnet test` runs 154 xUnit tests: 90 from Parts 1 and 2, and 64 for Part 3, including the fixes made after the first build.
 
 ## Running locally (no Docker) - two or three terminals
 
@@ -880,6 +880,8 @@ Line numbers point at the start of the relevant class, method or block.
 | **Part 3** BFS: all reachable, down node excluded, cut-off node reported, alternative hop found | `MeshReachabilityTests.cs` |
 | **Part 3** Prim's: hand-checked total and edges, V − 1 edges, brute-force comparison on random graphs, spanning forest with unreachable nodes, recompute after a node goes down | `PrimMinimumSpanningTreeTests.cs` |
 | **Part 3** route lookup: hop order, costs, total, reroute, unreachable | `MeshRouterTests.cs` |
+| **Part 3** history range inputs: the seconds Blazor adds to datetime-local values, half-typed values, commit rules | `HistoryRangeInputTests.cs` |
+| **Part 3** history presets: anchoring to the newest stored reading when live data has stopped, the note text | `HistoryPresetWindowTests.cs` |
 
 ## API reference
 
