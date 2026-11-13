@@ -161,6 +161,12 @@ public sealed class LiveStateContainer
 
     public int HistoryPage { get; set; } = 1;
 
+    /// <summary>
+    /// Set when a preset was anchored to the newest stored reading because no
+    /// live readings fall in the "last N minutes" (null otherwise).
+    /// </summary>
+    public string? HistoryNote { get; set; }
+
     public HistoryQueryResult? HistoryResult { get; private set; }
 
     public void SetHistoryResult(HistoryQueryResult? result)
